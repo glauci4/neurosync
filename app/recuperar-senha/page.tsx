@@ -1,7 +1,6 @@
 // app/recuperar-senha/page.tsx
 // Tela para solicitar recuperação de senha
 
-
 'use client';
 
 import { useState } from 'react';

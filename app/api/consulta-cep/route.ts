@@ -68,8 +68,7 @@ const dadosFormatados = {
     logradouro: dadosEndereco.logradouro || '',
     bairro: dadosEndereco.bairro || '',
     cidade: dadosEndereco.localidade || '',
-    estado: dadosEndereco.uf || '',
-    ibge: dadosEndereco.ibge || ''
+    estado: dadosEndereco.uf || ''
 };
 
     // Retorna os dados do endereço em formato JSON

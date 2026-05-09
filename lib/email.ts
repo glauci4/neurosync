@@ -4,8 +4,6 @@
 import nodemailer from 'nodemailer';
 
 // Configuração do transporte de e-mail
-// Estamos usando um serviço de teste (Ethereal) para desenvolvimento
-// Depois podemos trocar para Gmail, Outlook, etc.
 const transporter = nodemailer.createTransport({
     host: 'smtp.ethereal.email',
     port: 587,
@@ -36,7 +34,7 @@ export async function enviarEmailRecuperacao(email: string, token: string, nome:
                 <p>Este link é válido por 1 hora.</p>
                 <p>Se você não solicitou esta alteração, ignore este e-mail.</p>
                 <hr>
-                <p style="font-size: 12px; color: #666;">NeuroSync - Plataforma para clínicas psicológicas</p>
+                <p style="font-size: 12px; color: #666;">NeuroSync - Plataforma de agendamento para clínicas psicológicas</p>
             </div>
         `
     };

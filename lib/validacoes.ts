@@ -12,7 +12,7 @@ export function validarCNPJ(cnpj: string): boolean {
     // Verifica se tem 14 dígitos
     if (cnpj.length !== 14) return false;
     
-    // Verifica se não são todos números iguais (ex: 11111111111111)
+    // Verifica se não são todos números iguais 
     if (/^(\d)\1+$/.test(cnpj)) return false;
     
     // Validação dos dígitos verificadores

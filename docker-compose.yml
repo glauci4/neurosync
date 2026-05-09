@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:12
+    container_name: neurosyncdb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: neurosync_pw_root
+      MYSQL_DATABASE: neurosync
+      MYSQL_USER: neurosync_user
+      MYSQL_PASSWORD: neurosync_pw
+    ports:
+      - "3307:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+volumes:
+  mariadb_data:

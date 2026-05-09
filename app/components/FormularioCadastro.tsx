@@ -1,89 +1,58 @@
 // app/components/FormularioCadastro.tsx
-// Componente de formulário de cadastro de usuários
+// Componente de formulario de cadastro de usuarios, com TanStack Query para gerenciar consultas de CNPJ
 
 'use client';
 
 import { useState } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { MdErrorOutline } from 'react-icons/md';
+import { useConsultaCnpj } from '@/hooks/useConsultaCnpj';
+import { useRouter } from 'next/navigation';
 
 export default function FormularioCadastro() {
   // Estados para os campos do formulário
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
-  const [perfil, setPerfil] = useState('secretaria');
+  // perfilId: 1 = Secretaria, 2 = Psicologo(a)
+  const [perfilId, setPerfilId] = useState<number>(1);
   const [cnpj, setCnpj] = useState('');
   const [crp, setCrp] = useState('');
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
+  const router = useRouter(); 
   
-  // Estado para controlar visibilidade da senha
+  // Controle de visibilidade das senhas
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [mostrarConfirmarSenha, setMostrarConfirmarSenha] = useState(false);
   
   // Estado para loading e mensagens
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
-  
-  // Estado para validações
-  const [erroEmail, setErroEmail] = useState('');
   const [erroCrp, setErroCrp] = useState('');
-  const [erroCnpj, setErroCnpj] = useState('');
+  
+  // Estados para validação de email
+  const [erroEmail, setErroEmail] = useState('');
+  
+  // Estados para validação de senha
   const [erroSenha, setErroSenha] = useState('');
-  
-  // Estado para dados da clínica (preenchidos pela API)
-  const [dadosClinica, setDadosClinica] = useState({
-    razao_social: '',
-    nome_fantasia: '',
-    logradouro: '',
-    cidade: '',
-    estado: ''
-  });
-  
-  // Estado para controlar se está consultando o CNPJ
-  const [consultandoCnpj, setConsultandoCnpj] = useState(false);
 
-  // Função para validar senha forte
-  const validarSenhaForte = (senhaDigitada: string): { valida: boolean; mensagem: string } => {
-    if (senhaDigitada.length < 8) {
-      return {
-        valida: false,
-        mensagem: 'A senha deve ter pelo menos 8 caracteres'
-      };
-    }
+  // Usando o hook do TanStack Query para consultar CNPJ
+  const { 
+    data: dadosCnpj,
+    isLoading: consultandoCnpj,
+    error: erroCnpj
+  } = useConsultaCnpj(cnpj);
+
+  // Função para formatar CNPJ enquanto digita
+  const formatarCnpj = (valor: string) => {
+    const numeros = valor.replace(/\D/g, '');
     
-    if (!/[A-Z]/.test(senhaDigitada)) {
-      return {
-        valida: false,
-        mensagem: 'A senha deve conter pelo menos uma letra maiúscula (A-Z)'
-      };
-    }
+    if (numeros.length <= 2) return numeros;
+    if (numeros.length <= 5) return `${numeros.slice(0, 2)}.${numeros.slice(2)}`;
+    if (numeros.length <= 8) return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5)}`;
+    if (numeros.length <= 12) return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5, 8)}/${numeros.slice(8)}`;
     
-    if (!/[a-z]/.test(senhaDigitada)) {
-      return {
-        valida: false,
-        mensagem: 'A senha deve conter pelo menos uma letra minúscula (a-z)'
-      };
-    }
-    
-    if (!/[0-9]/.test(senhaDigitada)) {
-      return {
-        valida: false,
-        mensagem: 'A senha deve conter pelo menos um número (0-9)'
-      };
-    }
-    
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(senhaDigitada)) {
-      return {
-        valida: false,
-        mensagem: 'A senha deve conter pelo menos um caractere especial (!@#$%^&*(),.?":{}|<>)'
-      };
-    }
-    
-    return {
-      valida: true,
-      mensagem: 'Senha forte!'
-    };
+    return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5, 8)}/${numeros.slice(8, 12)}-${numeros.slice(12, 14)}`;
   };
 
   // Função para validar email
@@ -96,7 +65,7 @@ export default function FormularioCadastro() {
     }
     
     if (!regexEmail.test(emailDigitado)) {
-      setErroEmail('Digite um e-mail válido (exemplo: nome@empresa.com)');
+      setErroEmail('Digite um e-mail válido');
       return false;
     }
     
@@ -104,9 +73,29 @@ export default function FormularioCadastro() {
     return true;
   };
 
-  // Função que valida o CRP
+  // Função para validar senha forte
+  const validarSenhaForte = (senhaDigitada: string): { valida: boolean; mensagem: string } => {
+    if (senhaDigitada.length < 8) {
+      return { valida: false, mensagem: 'A senha deve ter pelo menos 8 caracteres' };
+    }
+    if (!/[A-Z]/.test(senhaDigitada)) {
+      return { valida: false, mensagem: 'A senha deve conter pelo menos uma letra maiúscula' };
+    }
+    if (!/[a-z]/.test(senhaDigitada)) {
+      return { valida: false, mensagem: 'A senha deve conter pelo menos uma letra minúscula' };
+    }
+    if (!/[0-9]/.test(senhaDigitada)) {
+      return { valida: false, mensagem: 'A senha deve conter pelo menos um número' };
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(senhaDigitada)) {
+      return { valida: false, mensagem: 'A senha deve conter pelo menos um caractere especial' };
+    }
+    return { valida: true, mensagem: 'Senha forte!' };
+  };
+
+  // Função que valida o CRP (apenas para psicólogos - perfilId = 2)
   const validarCrp = (crpDigitado: string) => {
-    if (perfil !== 'psicologo') return true;
+    if (perfilId !== 2) return true;
     
     const regexCrp = /^\d{2}\/\d{5}$/;
     
@@ -124,93 +113,10 @@ export default function FormularioCadastro() {
     return true;
   };
 
-  // Função para formatar CNPJ enquanto digita
-  const formatarCnpj = (valor: string) => {
-    const numeros = valor.replace(/\D/g, '');
-    
-    if (numeros.length <= 2) return numeros;
-    if (numeros.length <= 5) return `${numeros.slice(0, 2)}.${numeros.slice(2)}`;
-    if (numeros.length <= 8) return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5)}`;
-    if (numeros.length <= 12) return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5, 8)}/${numeros.slice(8)}`;
-    
-    return `${numeros.slice(0, 2)}.${numeros.slice(2, 5)}.${numeros.slice(5, 8)}/${numeros.slice(8, 12)}-${numeros.slice(12, 14)}`;
-  };
-
-  // Função para consultar CNPJ na API e verificar se é real
-  const consultarCnpj = async (cnpjDigitado: string) => {
-    const cnpjNumeros = cnpjDigitado.replace(/\D/g, '');
-    
-    if (cnpjNumeros.length !== 14) {
-      setErroCnpj('CNPJ deve ter 14 dígitos');
-      return;
-    }
-    
-    setConsultandoCnpj(true);
-    setErroCnpj('');
-    
-    try {
-      const response = await fetch(`/api/consulta-cnpj?cnpj=${cnpjNumeros}`);
-      const dados = await response.json();
-      
-      if (response.ok && dados.razao_social) {
-        // CNPJ real encontrado
-        setDadosClinica({
-          razao_social: dados.razao_social || '',
-          nome_fantasia: dados.nome_fantasia || '',
-          logradouro: dados.logradouro || '',
-          cidade: dados.cidade || '',
-          estado: dados.estado || ''
-        });
-        setErroCnpj('');
-      } else {
-        // CNPJ não encontrado ou inválido
-        setErroCnpj('CNPJ inválido ou não encontrado. Verifique o número digitado.');
-        setDadosClinica({
-          razao_social: '',
-          nome_fantasia: '',
-          logradouro: '',
-          cidade: '',
-          estado: ''
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao consultar CNPJ:', error);
-      setErroCnpj('Erro ao consultar CNPJ. Tente novamente mais tarde.');
-    } finally {
-      setConsultandoCnpj(false);
-    }
-  };
-
-  // Função chamada quando o CNPJ perde o foco
-  const handleCnpjBlur = () => {
-    const cnpjNumeros = cnpj.replace(/\D/g, '');
-    if (cnpjNumeros.length === 14) {
-      consultarCnpj(cnpj);
-    } else if (cnpjNumeros.length > 0 && cnpjNumeros.length !== 14) {
-      setErroCnpj('CNPJ deve ter 14 dígitos');
-    }
-  };
-
-  // Função chamada quando o CNPJ é digitado
-  const handleCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const novoCnpj = formatarCnpj(e.target.value);
-    setCnpj(novoCnpj);
-    // Limpa o erro enquanto digita
-    if (erroCnpj) setErroCnpj('');
-    if (dadosClinica.nome_fantasia) {
-      setDadosClinica({
-        razao_social: '',
-        nome_fantasia: '',
-        logradouro: '',
-        cidade: '',
-        estado: ''
-      });
-    }
-  };
-
   // Função chamada quando o perfil muda
-  const handlePerfilChange = (novoPerfil: string) => {
-    setPerfil(novoPerfil);
+  const handlePerfilChange = (novoPerfilId: number) => {
+    console.log('Alterando perfil para:', novoPerfilId === 1 ? 'Secretaria' : 'Psicologo');
+    setPerfilId(novoPerfilId);
     setCrp('');
     setErroCrp('');
   };
@@ -264,10 +170,19 @@ export default function FormularioCadastro() {
       return;
     }
     
-    if (perfil === 'psicologo' && !crp) {
-      setErro('CRP é obrigatório para psicólogos');
+    if (consultandoCnpj) {
+      setErro('Aguardando validação do CNPJ...');
       setCarregando(false);
       return;
+    }
+    
+    if (perfilId === 2) {
+      const crpValido = validarCrp(crp);
+      if (!crpValido) {
+        setErro(erroCrp || 'CRP é obrigatório para psicólogos');
+        setCarregando(false);
+        return;
+      }
     }
     
     if (!senhaValida.valida) {
@@ -283,15 +198,24 @@ export default function FormularioCadastro() {
     }
     
     try {
+      // Monta os dados para envio
       const dadosCadastro = {
         nome,
         email,
         senha,
         confirmarSenha,
-        perfil,
+        perfil_id: perfilId,
         cnpj: cnpj.replace(/\D/g, ''),
-        crp: perfil === 'psicologo' ? crp : undefined
+        crp: perfilId === 2 ? crp : undefined
       };
+      
+      // Log para debug, verifica o que está sendo enviado
+      console.log('Dados enviados para cadastro:', {
+        ...dadosCadastro,
+        senha: '***',
+        confirmarSenha: '***'
+      });
+      console.log('perfilId enviado:', perfilId);
       
       const response = await fetch('/api/usuarios', {
         method: 'POST',
@@ -303,30 +227,36 @@ export default function FormularioCadastro() {
       
       const resultado = await response.json();
       
+      console.log('Resposta da API:', resultado);
+      
       if (response.ok) {
         alert('Cadastro realizado com sucesso!');
+        
+        // Limpa o formulário
         setNome('');
         setEmail('');
         setCnpj('');
         setCrp('');
         setSenha('');
         setConfirmarSenha('');
-        setDadosClinica({
-          razao_social: '',
-          nome_fantasia: '',
-          logradouro: '',
-          cidade: '',
-          estado: ''
-        });
+        setPerfilId(1);
+        
+        // Força o redirecionamento para a página de login
+        window.location.href = '/';
+        
       } else {
         setErro(resultado.error || 'Erro ao cadastrar');
       }
     } catch (error) {
+      console.error('Erro no cadastro:', error);
       setErro('Erro ao conectar com o servidor');
     } finally {
       setCarregando(false);
     }
   };
+
+  // Função auxiliar para saber se o perfil ativo é do psicólogo
+  const isPsicologo = perfilId === 2;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -372,9 +302,6 @@ export default function FormularioCadastro() {
             {erroEmail}
           </p>
         )}
-        <p className="text-xs text-gray-400 mt-1">
-          Exemplo: nome@empresa.com
-        </p>
       </div>
       
       {/* Perfil de acesso */}
@@ -386,9 +313,9 @@ export default function FormularioCadastro() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="radio"
-              value="secretaria"
-              checked={perfil === 'secretaria'}
-              onChange={() => handlePerfilChange('secretaria')}
+              value="1"
+              checked={perfilId === 1}
+              onChange={() => handlePerfilChange(1)}
               className="w-4 h-4 accent-[#9F64AF] focus:ring-[#9F64AF] focus:ring-offset-0"
             />
             <span className="text-gray-700">Secretária</span>
@@ -396,9 +323,9 @@ export default function FormularioCadastro() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="radio"
-              value="psicologo"
-              checked={perfil === 'psicologo'}
-              onChange={() => handlePerfilChange('psicologo')}
+              value="2"
+              checked={perfilId === 2}
+              onChange={() => handlePerfilChange(2)}
               className="w-4 h-4 accent-[#9F64AF] focus:ring-[#9F64AF] focus:ring-offset-0"
             />
             <span className="text-gray-700">Psicólogo(a)</span>
@@ -415,35 +342,35 @@ export default function FormularioCadastro() {
           id="cnpj"
           type="text"
           value={cnpj}
-          onChange={handleCnpjChange}
-          onBlur={handleCnpjBlur}
-          placeholder="00.000.000/0000-00"
+          onChange={(e) => setCnpj(formatarCnpj(e.target.value))}
+          placeholder="Digite o CNPJ da clinica"
           maxLength={18}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400 ${
-            erroCnpj ? 'border-red-500 bg-red-50' : 'border-gray-300'
-          }`}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400"
           disabled={carregando || consultandoCnpj}
         />
+        
         {consultandoCnpj && (
           <p className="text-xs text-[#9F64AF] mt-1">Consultando CNPJ...</p>
         )}
+        
         {erroCnpj && (
           <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
             <MdErrorOutline size={14} />
-            {erroCnpj}
+            CNPJ inválido ou não encontrado
           </p>
         )}
-        {dadosClinica.nome_fantasia && !erroCnpj && (
+        
+        {dadosCnpj && dadosCnpj.nome_fantasia && !erroCnpj && (
           <div className="mt-2 p-2 bg-green-50 rounded-lg text-xs border border-green-200">
-            <p className="text-green-700 font-medium">✓ CNPJ válido</p>
-            <p className="text-gray-600 mt-1">Clínica: {dadosClinica.nome_fantasia}</p>
-            <p className="text-gray-500 text-xs">{dadosClinica.cidade}/{dadosClinica.estado}</p>
+            <p className="text-green-700 font-medium">✓ CNPJ valido</p>
+            <p className="text-gray-600 mt-1">Clinica: {dadosCnpj.nome_fantasia}</p>
+            <p className="text-gray-500 text-xs">{dadosCnpj.cidade}/{dadosCnpj.estado}</p>
           </div>
         )}
       </div>
       
       {/* Campo CRP (aparece apenas para psicólogo) */}
-      {perfil === 'psicologo' && (
+      {isPsicologo && (
         <div>
           <label htmlFor="crp" className="block text-sm font-medium text-gray-700 mb-1">
             CRP
@@ -454,7 +381,7 @@ export default function FormularioCadastro() {
             value={crp}
             onChange={(e) => setCrp(e.target.value)}
             onBlur={() => validarCrp(crp)}
-            placeholder="00/00000"
+            placeholder="Digite seu CRP (formato: 00/00000)"
             maxLength={8}
             className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] focus:border-transparent transition-all duration-200 text-gray-800 placeholder-gray-400 ${
               erroCrp ? 'border-red-500 bg-red-50' : 'border-gray-300'
@@ -467,9 +394,6 @@ export default function FormularioCadastro() {
               {erroCrp}
             </p>
           )}
-          <p className="text-xs text-gray-400 mt-1">
-            Exemplo: 01/12345 (Região/Registro)
-          </p>
         </div>
       )}
       
@@ -498,28 +422,15 @@ export default function FormularioCadastro() {
             {mostrarSenha ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
           </button>
         </div>
-        
-        {/* Mensagem de erro específica baseada na validação */}
         {erroSenha && (
           <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
             <MdErrorOutline size={14} />
             {erroSenha}
           </p>
         )}
-        
-        {/* Sugestão resumida de senha forte - aparece apenas quando não há erro específico */}
-        {!erroSenha && senha.length > 0 && (
-          <p className="text-green-600 text-xs mt-1">
-            ✓ Senha forte!
-          </p>
-        )}
-        
-        {/* Dica resumida que aparece quando o campo está vazio */}
-        {senha.length === 0 && (
-          <p className="text-xs text-gray-400 mt-1">
-            A senha deve conter + de 8 caracteres incluindo letras, números e caracteres especiais
-          </p>
-        )}
+        <p className="text-xs text-gray-400 mt-1">
+          A senha deve ter no mínimo 8 caracteres, conter letras maiúsculas, minúsculas, números e caracteres especiais.
+        </p>
       </div>
       
       {/* Campo Confirmar Senha */}
@@ -534,9 +445,7 @@ export default function FormularioCadastro() {
             value={confirmarSenha}
             onChange={(e) => setConfirmarSenha(e.target.value)}
             placeholder="Confirme sua senha"
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] focus:border-transparent transition-all duration-200 pr-10 text-gray-800 placeholder-gray-400 ${
-              confirmarSenha && senha !== confirmarSenha ? 'border-red-500 bg-red-50' : 'border-gray-300'
-            }`}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] focus:border-transparent transition-all duration-200 pr-10 text-gray-800 placeholder-gray-400"
             disabled={carregando}
           />
           <button
@@ -566,7 +475,7 @@ export default function FormularioCadastro() {
       {/* Botão de Cadastrar */}
       <button
         type="submit"
-        disabled={carregando}
+        disabled={carregando || consultandoCnpj}
         className="w-full bg-[#9F64AF] text-white py-2 rounded-lg font-medium hover:bg-[#8B509B] transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm"
       >
         {carregando ? 'Cadastrando...' : 'Cadastrar'}

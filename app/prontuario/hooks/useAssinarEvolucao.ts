@@ -1,0 +1,2 @@
+export { useAssinarEvolucao } from "./useProntuario";
+

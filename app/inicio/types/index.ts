@@ -1,11 +1,23 @@
 // app/inicio/types/index.ts
 
+export type StatusConsultaInicio =
+  | "agendado"
+  | "em_andamento"
+  | "concluido"
+  | "pendente"
+  | "cancelado"
+  | "falta"
+  | "remarcado";
+
 export interface Consulta {
   id: number;
   horario: string;
+  horarioFim?: string;
   paciente: string;
+  psicologo?: string | null;
   sala: string;
-  status: 'agendado' | 'concluido' | 'falta';
+  tipoAtendimento: string;
+  status: StatusConsultaInicio;
 }
 
 export interface Metricas {
@@ -13,12 +25,12 @@ export interface Metricas {
     total: number;
     concluidas: number;
     variacao: string;
-    variacaoTipo: 'up' | 'down';
+    variacaoTipo: "up" | "down";
   };
   pacientesAtivos: {
     total: number;
     variacao: string;
-    variacaoTipo: 'up' | 'down';
+    variacaoTipo: "up" | "down";
   };
   prontuarios: {
     total: number;
@@ -27,6 +39,6 @@ export interface Metricas {
   taxaPresenca: {
     total: number;
     variacao: string;
-    variacaoTipo: 'up' | 'down';
+    variacaoTipo: "up" | "down";
   };
 }

@@ -1,290 +1,436 @@
 // app/inicio/page.tsx
-// Página principal (Início), exibe as consultas agendadas para o dia atual 
+// Tela inicial acolhedora com consultas do dia e filtros leves.
 
-'use client';
+"use client";
 
-import { useAutenticacao } from '@/hooks/useAutenticacao';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  Calendar, 
-  CalendarCheck2,    // Agendado (consulta marcada, paciente virá)
-  CalendarClock,     // Remarcado (consulta foi reagendada)
-  CalendarOff,       // Falta (não compareceu sem aviso)
-  CalendarX2,        // Cancelado (avisou que não virá)
-  Clock, 
-  Tag,               // Substitui DoorOpen (representa identificador da sala)
-  User,
-  CheckCircle,       // Concluído (consulta realizada)
-} from 'lucide-react';
-import Sidebar from './components/Sidebar';
-import { useQuery } from '@tanstack/react-query';
-import { useSidebar } from '@/app/context/SidebarContext'; // Importa o hook da sidebar
+import { AlertTriangle, ArrowRight, BrushCleaning, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useAgenda } from "@/app/agenda/hooks/useAgenda";
+import { useSidebar } from "@/app/context/SidebarContext";
+import { useAutenticacao } from "@/hooks/useAutenticacao";
+import AgendaHoje from "./components/AgendaHoje";
+import FiltrosInicio, {
+  type EstadoFiltrosInicio,
+} from "./components/FiltrosInicio";
+import Sidebar from "./components/Sidebar";
+import type { StatusConsultaInicio } from "./types";
 
-// Tipo que define a estrutura de uma consulta
-interface ConsultaType {
+interface ConsultaAgendaAPI {
+  id: number;
+  paciente_nome: string;
+  psicologo_id: number;
+  psicologo_nome: string;
+  sala_nome: string;
+  status: "agendado" | "remarcado" | "cancelado" | "falta" | "concluido";
+  data_consulta: string;
+  horario_inicio: string;
+  horario_fim: string;
+  tipo_atendimento: string;
+  tipo_outro?: string | null;
+}
+
+interface ConsultaPainel {
   id: number;
   horario: string;
   paciente: string;
-  sala: number;
-  status: 'agendado' | 'remarcado' | 'cancelado' | 'falta' | 'concluido';
+  psicologo?: string | null;
+  sala: string;
+  tipoAtendimento: string;
+  statusOriginal: ConsultaAgendaAPI["status"];
+  status: StatusConsultaInicio;
+  dataConsulta: string;
+  horarioInicio: string;
+  horarioFim: string;
+  psicologoId: number;
 }
 
-// Configuração completa dos status, cada status tem: cor de fundo, texto, ícone e descrição (para tooltip)
-const statusConfig = {
-  agendado: {
-    cor: 'bg-blue-100 text-blue-700',
-    texto: 'Agendado',
-    icone: CalendarCheck2,
-    descricao: 'Consulta marcada, paciente virá'
-  },
-  remarcado: {
-    cor: 'bg-purple-100 text-purple-700',
-    texto: 'Remarcado',
-    icone: CalendarClock,
-    descricao: 'Consulta reagendada para outra data'
-  },
-  cancelado: {
-    cor: 'bg-orange-100 text-orange-700',
-    texto: 'Cancelado',
-    icone: CalendarX2,
-    descricao: 'Paciente avisou que não virá'
-  },
-  falta: {
-    cor: 'bg-red-100 text-red-700',
-    texto: 'Falta',
-    icone: CalendarOff,
-    descricao: 'Não compareceu e não avisou'
-  },
-  concluido: {
-    cor: 'bg-green-100 text-green-700',
-    texto: 'Concluído',
-    icone: CheckCircle,
-    descricao: 'Consulta realizada com sucesso'
+function dataHojeISO(dataReferencia = new Date()) {
+  const ano = dataReferencia.getFullYear();
+  const mes = String(dataReferencia.getMonth() + 1).padStart(2, "0");
+  const dia = String(dataReferencia.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
+function horaCurta(hora: string) {
+  return hora?.slice(0, 5) || "";
+}
+
+function criarDataHoraLocal(data: string, hora: string) {
+  const [ano, mes, dia] = data.split("-").map(Number);
+  const [horas, minutos] = horaCurta(hora).split(":").map(Number);
+  return new Date(ano, mes - 1, dia, horas || 0, minutos || 0);
+}
+
+function capitalizarTexto(texto: string) {
+  const valor = texto.trim();
+  if (!valor) return "";
+  return valor.charAt(0).toUpperCase() + valor.slice(1);
+}
+
+function formatarTipoAtendimento(tipo: string, tipoOutro?: string | null) {
+  const mapa: Record<string, string> = {
+    triagem: "Triagem",
+    psicoterapia: "Psicoterapia",
+    devolutiva: "Devolutiva",
+    avaliacao: "Avaliação",
+    orientacao: "Orientação",
+    retorno: "Retorno",
+    alta: "Alta",
+    outro: tipoOutro?.trim() || "Outro",
+  };
+
+  return mapa[tipo] || capitalizarTexto(tipo);
+}
+
+function obterStatusPainel(
+  consulta: ConsultaAgendaAPI,
+  agora: Date,
+): StatusConsultaInicio {
+  if (consulta.status !== "agendado") return consulta.status;
+
+  const inicio = criarDataHoraLocal(
+    consulta.data_consulta,
+    consulta.horario_inicio,
+  );
+  const fim = criarDataHoraLocal(consulta.data_consulta, consulta.horario_fim);
+
+  if (agora >= fim) {
+    return "pendente";
   }
-};
 
-// DADOS FICTÍCIOS PARA TESTE (comentado para não interferir quando a API estiver pronta)
-/*
-const consultasFicticias: ConsultaType[] = [
-  { id: 1, horario: '08:00', paciente: 'Ana Souza', sala: 1, status: 'concluido' },
-  { id: 2, horario: '09:30', paciente: 'Carlos Lima', sala: 2, status: 'agendado' },
-  { id: 3, horario: '10:00', paciente: 'Fernanda Rios', sala: 1, status: 'remarcado' },
-  { id: 4, horario: '11:30', paciente: 'João Pedro', sala: 3, status: 'falta' },
-  { id: 5, horario: '14:00', paciente: 'Mariana Costa', sala: 2, status: 'cancelado' },
-  { id: 6, horario: '15:30', paciente: 'Roberto Silva', sala: 1, status: 'agendado' },
-  { id: 7, horario: '17:00', paciente: 'Patrícia Oliveira', sala: 3, status: 'agendado' },
-];
-*/
+  if (agora >= inicio && agora < fim) {
+    return "em_andamento";
+  }
 
-// Função para buscar consultas da API
-// Quando a API estiver pronta, será substituída pela chamada real
-async function buscarConsultas(): Promise<ConsultaType[]> {
-  // TODO: Substituir pela chamada real à API
-  // const response = await fetch('/api/consultas/hoje');
-  // return response.json();
-  
-  // Retorna array vazio enquanto não há API
-  return [];
-  
-  // Para testar com dados fictícios, só descomentar a linha abaixo:
-  // return consultasFicticias;
+  return "agendado";
+}
+
+function converterConsulta(
+  consulta: ConsultaAgendaAPI,
+  agora: Date,
+): ConsultaPainel {
+  return {
+    id: consulta.id,
+    horario: horaCurta(consulta.horario_inicio),
+    paciente: consulta.paciente_nome,
+    psicologo: consulta.psicologo_nome,
+    sala: consulta.sala_nome,
+    tipoAtendimento: formatarTipoAtendimento(
+      consulta.tipo_atendimento,
+      consulta.tipo_outro,
+    ),
+    statusOriginal: consulta.status,
+    status: obterStatusPainel(consulta, agora),
+    dataConsulta: consulta.data_consulta,
+    horarioInicio: consulta.horario_inicio,
+    horarioFim: consulta.horario_fim,
+    psicologoId: consulta.psicologo_id,
+  };
+}
+
+function filtrarConsultas(
+  consultas: ConsultaPainel[],
+  filtros: EstadoFiltrosInicio,
+  busca: string,
+) {
+  const termo = busca.trim().toLowerCase();
+
+  return consultas.filter((consulta) => {
+    if (
+      filtros.status === "em_andamento" &&
+      consulta.status !== "em_andamento"
+    ) {
+      return false;
+    }
+
+    if (filtros.status === "agendadas") {
+      if (!["agendado", "remarcado"].includes(consulta.statusOriginal)) {
+        return false;
+      }
+    }
+
+    if (filtros.status === "concluidas" && consulta.status !== "concluido") {
+      return false;
+    }
+
+    if (filtros.status === "pendentes") {
+      const pendente = ["agendado", "remarcado", "falta"].includes(
+        consulta.statusOriginal,
+      );
+      if (!pendente || consulta.status === "em_andamento") return false;
+    }
+
+    if (filtros.psicologo_id && consulta.psicologoId !== filtros.psicologo_id) {
+      return false;
+    }
+
+    if (filtros.sala) {
+      const salaNormalizada = consulta.sala.toLowerCase();
+      if (!salaNormalizada.includes(filtros.sala.toLowerCase())) {
+        return false;
+      }
+    }
+
+    if (!termo) return true;
+
+    const textoBusca = [
+      consulta.paciente,
+      consulta.psicologo || "",
+      consulta.sala,
+      consulta.tipoAtendimento,
+      consulta.status,
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return textoBusca.includes(termo);
+  });
+}
+
+function ordenarConsultas(consultas: ConsultaPainel[]) {
+  return [...consultas].sort(
+    (a, b) =>
+      criarDataHoraLocal(a.dataConsulta, a.horarioInicio).getTime() -
+      criarDataHoraLocal(b.dataConsulta, b.horarioInicio).getTime(),
+  );
+}
+
+function saudacaoAtual(data: Date) {
+  const hora = data.getHours();
+  if (hora < 12) return "Bom dia";
+  if (hora < 18) return "Boa tarde";
+  return "Boa noite";
 }
 
 export default function Inicio() {
-  // Obtém os dados de autenticação do usuário
-  const { usuario, carregando, estaAutenticado, fazerLogout } = useAutenticacao();
-  
-  // Obtém o estado da sidebar (recolhida ou expandida) do contexto global
+  const { usuario, carregando, estaAutenticado, fazerLogout } =
+    useAutenticacao();
   const { isCollapsed } = useSidebar();
-  
   const router = useRouter();
-
-  // TanStack Query (busca as consultas do dia)
-  // Gerencia automaticamente: loading, error, cache e refetch
-  const { 
-    data: consultasRaw, 
-    isLoading: carregandoConsultas,
-    error: erroConsultas
-  } = useQuery({
-    queryKey: ['consultas', 'hoje'],
-    queryFn: buscarConsultas,
+  const [agora, setAgora] = useState(() => new Date());
+  const [busca, setBusca] = useState("");
+  const [filtros, setFiltros] = useState<EstadoFiltrosInicio>({
+    status: "todos",
+    psicologo_id: undefined,
+    sala: undefined,
   });
 
-  const consultas = consultasRaw || [];
+  const perfilId =
+    usuario?.perfil_id || (usuario?.perfil === "psicologo" ? 2 : 1);
+  const ePsicologo = usuario?.perfil === "psicologo";
 
-  // Redireciona para login se não estiver autenticado
+  const hojeISO = dataHojeISO();
+  const filtrosAgenda = useMemo(
+    () => ({
+      data_inicio: hojeISO,
+      data_fim: hojeISO,
+      ...(ePsicologo ? { psicologo_id: usuario.id } : {}),
+    }),
+    [ePsicologo, hojeISO, usuario?.id],
+  );
+
+  const {
+    data: agendaData,
+    isLoading: carregandoConsultas,
+    error: erroConsultas,
+  } = useAgenda(filtrosAgenda);
+
+  const consultasBase = useMemo(() => {
+    const dados = ((agendaData?.data || []) as ConsultaAgendaAPI[]) || [];
+    return ordenarConsultas(
+      dados.map((consulta) => converterConsulta(consulta, agora)),
+    );
+  }, [agendaData, agora]);
+
+  const opcoesPsicologos = useMemo(() => {
+    const mapa = new Map<number, string>();
+    for (const consulta of consultasBase) {
+      if (consulta.psicologoId && consulta.psicologo) {
+        mapa.set(consulta.psicologoId, consulta.psicologo);
+      }
+    }
+    return Array.from(mapa.entries()).map(([valor, label]) => ({
+      valor: String(valor),
+      label,
+    }));
+  }, [consultasBase]);
+
+  const opcoesSalas = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const consulta of consultasBase) {
+      if (consulta.sala) {
+        mapa.set(consulta.sala, consulta.sala);
+      }
+    }
+    return Array.from(mapa.entries()).map(([valor, label]) => ({
+      valor,
+      label,
+    }));
+  }, [consultasBase]);
+
+  const consultasVisiveis = useMemo(
+    () => filtrarConsultas(consultasBase, filtros, busca),
+    [consultasBase, busca, filtros],
+  );
+
+  const consultasHojeTotal = consultasBase.length;
+  const saudacao = saudacaoAtual(agora);
+  const primeiroNome =
+    usuario?.nome?.split(" ")[0] || usuario?.nome || "usuário";
+  const textoResumo = consultasHojeTotal
+    ? ePsicologo
+      ? `Veja seus atendimentos programados para hoje.`
+      : `Confira os atendimentos programados para hoje.`
+    : "Nenhuma consulta programada para hoje.";
+  const mensagemVaziaConsultas = busca.trim()
+    ? "Nenhuma consulta encontrada para a busca."
+    : consultasVisiveis.length === 0 && consultasHojeTotal > 0
+      ? "Nenhum atendimento encontrado com esse filtro."
+      : "Nenhuma consulta agendada para hoje.";
+
+  useEffect(() => {
+    const intervalo = window.setInterval(() => {
+      setAgora(new Date());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(intervalo);
+  }, []);
+
   useEffect(() => {
     if (!carregando && !estaAutenticado) {
-      router.push('/');
+      router.push("/");
     }
   }, [carregando, estaAutenticado, router]);
 
-  // Tela de carregamento da autenticação
   if (carregando) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#F3EAF8] to-[#E1D4F0] flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#F3EAF8] to-[#E1D4F0]">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#9F64AF] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500 text-sm">Carregando autenticação...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[#9F64AF] border-t-transparent" />
+          <p className="text-sm text-gray-500">Carregando autenticação...</p>
         </div>
       </div>
     );
   }
 
-  // Segurança: se não autenticado ou sem usuário, não renderiza
   if (!estaAutenticado || !usuario) {
     return null;
   }
 
-  // Define o ID do perfil (1 = Secretária, 2 = Psicólogo)
-  const perfilId = usuario.perfil_id || (usuario.perfil === 'psicologo' ? 2 : 1);
-
-  // CALCULA A MARGEM DINÂMICA BASEADA NO ESTADO DA SIDEBAR
-  // Se a sidebar estiver recolhida (isCollapsed = true), usa margem de 5rem (w-20)
-  // Se a sidebar estiver expandida (isCollapsed = false), usa margem de 16rem (w-64)
-  const contentMargin = isCollapsed ? 'ml-20' : 'ml-64';
-
-  // Formatação da data atual para exibição
-  // Exemplo: "segunda-feira, 20 de abril de 2026"
-  const hoje = new Date();
-  const dataFormatada = hoje.toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'      
-  });
-  const dataCapitalizada = dataFormatada.charAt(0).toUpperCase() + dataFormatada.slice(1);
+  const contentMargin = isCollapsed ? "ml-20" : "ml-64";
+  const placeholderBusca =
+    usuario.perfil === "psicologo"
+      ? "Buscar paciente ou sala"
+      : "Buscar paciente, psicólogo ou sala";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F3EAF8] to-[#E1D4F0]">
-      
-      {/* Componente da Sidebar - recebe perfil, função de logout e dados do usuário */}
-      <Sidebar 
-        perfilId={perfilId} 
-        onLogout={fazerLogout}
-        usuario={usuario}
-      />
+      <Sidebar perfilId={perfilId} onLogout={fazerLogout} usuario={usuario} />
 
-      {/* CONTEÚDO PRINCIPAL - A MARGEM ESQUERDA SE AJUSTA DINAMICAMENTE */}
-      {/* Quando a sidebar recolhe, o conteúdo se move para a esquerda */}
-      {/* Quando a sidebar expande, o conteúdo volta para a direita */}
       <div className={contentMargin}>
-        
-        {/* Cabeçalho da página */}
-        <div className="pt-8 px-8 pb-2">
-          <h1 className="text-2xl font-bold text-gray-800">Início</h1>
-          <p className="text-gray-500 text-sm mt-1">Visão geral do sistema</p>
+        <div className="px-8 pt-8 pb-2">
+          <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-800">
+                {saudacao},{" "}
+                <span className="inline-flex items-center gap-2">
+                  {primeiroNome}
+                </span>
+              </p>
+              <p className="mt-2 text-sm leading-6 text-gray-500">
+                {textoResumo}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => router.push("/agenda")}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#9F64AF] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#8B509B]"
+            >
+              <ArrowRight size={16} />
+              Ver agenda
+            </button>
+          </header>
         </div>
 
-        {/* Área principal de conteúdo */}
         <main className="px-8 pb-8">
-          <div className="max-w-4xl mx-auto">
-            
-            {/* Card de Consultas de Hoje */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-[#E1D4F0] overflow-hidden"
-            >
-              {/* Cabeçalho do card */}
-              <div className="flex items-center justify-between p-6 border-b border-[#E1D4F0]">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-800">Consultas de Hoje</h2>
-                  <p className="text-sm text-gray-400 mt-1">{dataCapitalizada}</p>
+          <div className="mx-auto max-w-5xl space-y-4 pt-2">
+            <section className="relative z-[9999] rounded-2xl border border-[#9F64AF]/15 bg-white/75 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="relative w-full lg:max-w-md">
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    type="search"
+                    value={busca}
+                    onChange={(evento) => setBusca(evento.target.value)}
+                    placeholder={placeholderBusca}
+                    className="w-full rounded-xl border border-gray-200 bg-white/90 py-2.5 pl-9 pr-3 text-sm text-gray-700 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-[#9F64AF]/50 focus:ring-2 focus:ring-[#9F64AF]/10"
+                  />
+                  {busca.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setBusca("")}
+                      className="absolute top-1/2 right-2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 transition hover:bg-[#F3EAF8] hover:text-[#9F64AF]"
+                      aria-label="Limpar busca"
+                      title="Limpar busca"
+                    >
+                      <BrushCleaning size={14} />
+                    </button>
+                  )}
                 </div>
-                
-                {/* Botão "Ver Agenda", redireciona para a página de agenda */}
-                <button 
-                  onClick={() => router.push('/agenda')}
-                  className="bg-[#9F64AF] hover:bg-[#8B509B] text-white text-sm font-medium px-4 py-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
-                >
-                  Ver Agenda
-                </button>
+
+                <div className="flex items-center gap-3">
+                  <FiltrosInicio
+                    filtros={filtros}
+                    psicologos={opcoesPsicologos}
+                    salas={opcoesSalas}
+                    mostrarPsicologos={!ePsicologo}
+                    onChange={setFiltros}
+                  />
+                </div>
               </div>
+            </section>
 
-              {/* Estado: Carregando consultas */}
-              {carregandoConsultas && (
-                <div className="flex items-center justify-center py-16">
-                  <div className="text-center">
-                    <div className="w-10 h-10 border-4 border-[#9F64AF] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                    <p className="text-gray-400 text-sm">Carregando consultas...</p>
+            {carregandoConsultas ? (
+              <section className="rounded-2xl border border-[#E1D4F0] bg-white/90 p-6 shadow-sm backdrop-blur-sm">
+                <div className="flex justify-center py-10">
+                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#9F64AF] border-t-transparent" />
+                </div>
+              </section>
+            ) : erroConsultas ? (
+              <section className="rounded-2xl border border-red-200 bg-white/90 p-6 shadow-sm">
+                <div className="flex flex-col items-center gap-2 py-8 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-500">
+                    <AlertTriangle size={22} />
                   </div>
+                  <p className="text-sm font-medium text-gray-800">
+                    Não foi possível carregar as consultas do dia.
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Tente novamente em instantes.
+                  </p>
                 </div>
-              )}
-
-              {/* Estado: Nenhuma consulta agendada */}
-              {!carregandoConsultas && consultas.length === 0 && (
-                <div className="text-center py-16">
-                  <div className="w-16 h-16 bg-[#F3EAF8] rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Calendar size={28} className="text-[#9F64AF]" />
-                  </div>
-                  <p className="text-gray-400 text-sm">Nenhuma consulta agendada para hoje</p>
-                </div>
-              )}
-
-              {/* Estado: Lista de consultas */}
-              {!carregandoConsultas && consultas.length > 0 && (
-                <div className="divide-y divide-[#E1D4F0]">
-                  {consultas.map((consulta) => {
-                    // Obtém a configuração do status atual
-                    const config = statusConfig[consulta.status];
-                    const IconeStatus = config.icone;
-                    
-                    return (
-                      <div 
-                        key={consulta.id} 
-                        className="flex items-center justify-between p-5 hover:bg-[#F3EAF8] transition-colors"
-                      >
-                        {/* Horário da consulta */}
-                        <div className="w-20">
-                          <div className="flex items-center gap-1 text-gray-600">
-                            <Clock size={14} />
-                            <span className="text-sm font-medium">{consulta.horario}</span>
-                          </div>
-                        </div>
-
-                        {/* Nome do paciente */}
-                        <div className="flex-1 ml-4">
-                          <div className="flex items-center gap-2">
-                            <User size={14} className="text-gray-400" />
-                            <span className="text-sm text-gray-800">{consulta.paciente}</span>
-                          </div>
-                        </div>
-
-                        {/* Sala da consulta */}
-                        <div className="w-24">
-                          <div className="flex items-center gap-1 text-gray-500">
-                            <Tag size={12} />
-                            <span className="text-xs">Sala {consulta.sala}</span>
-                          </div>
-                        </div>
-
-                        {/* Status com ícone, cor e tooltip */}
-                        <div className="w-28 text-right">
-                          <span 
-                            className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${config.cor}`}
-                            title={config.descricao}
-                          >
-                            <IconeStatus size={12} />
-                            {config.texto}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Estado: Erro ao carregar consultas */}
-              {erroConsultas && (
-                <div className="text-center py-12">
-                  <p className="text-red-500 text-sm">Erro ao carregar consultas. Tente novamente.</p>
-                </div>
-              )}
-            </motion.div>
+              </section>
+            ) : (
+              <AgendaHoje
+                consultas={consultasVisiveis.map((consulta) => ({
+                  id: consulta.id,
+                  horario: consulta.horario,
+                  horarioFim: consulta.horarioFim,
+                  paciente: consulta.paciente,
+                  psicologo: consulta.psicologo,
+                  sala: consulta.sala,
+                  tipoAtendimento: consulta.tipoAtendimento,
+                  status: consulta.status,
+                }))}
+                mostrarPsicologo={!ePsicologo}
+                mensagemVazia={mensagemVaziaConsultas}
+              />
+            )}
           </div>
         </main>
       </div>

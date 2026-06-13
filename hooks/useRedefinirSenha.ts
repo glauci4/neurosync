@@ -1,7 +1,4 @@
-// app/hooks/useRedefinirSenha.ts
-// Hook para redefinir senha usando token
-
-import { useMutation } from '@tanstack/react-query';
+import { useMutation } from "@tanstack/react-query";
 
 interface RedefinirData {
   token: string;
@@ -9,22 +6,22 @@ interface RedefinirData {
   confirmarSenha: string;
 }
 
-async function redefinirSenha(dados: RedefinirData): Promise<{ success: boolean; message: string }> {
-  const response = await fetch('/api/recuperacao-senha/redefinir', {
-    method: 'POST',
+async function redefinirSenha(dados: RedefinirData) {
+  const response = await fetch("/api/recuperacao-senha/redefinir", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(dados),
   });
-  
+
   const resultado = await response.json();
-  
+
   if (!response.ok) {
-    throw new Error(resultado.error || 'Erro ao redefinir senha');
+    throw new Error(resultado.error || "Erro ao redefinir senha");
   }
-  
-  return resultado;
+
+  return resultado as { success: boolean; message: string };
 }
 
 export function useRedefinirSenha() {

@@ -20,14 +20,15 @@ export default function Home() {
 
   // Verifica se o usuário já está logado ao carregar a página
   useEffect(() => {
-    console.log('Página inicial - carregando:', carregando);
-    console.log('Página inicial - estaAutenticado:', estaAutenticado);
-    console.log('Página inicial - usuario:', usuario);
-    
+    console.log("Página inicial - carregando:", carregando);
+    console.log("Página inicial - estaAutenticado:", estaAutenticado);
+    console.log("Página inicial - usuario:", usuario);
+
     // Se não estiver mais carregando e o usuário estiver autenticado (ou seja, já logado), redireciona para a página de início
     if (!carregando && estaAutenticado) {
-      console.log('Usuário já está logado, redirecionando para dashboard');
-      router.push('/inicio');
+      console.timeStamp("login-page:redirect-inicio");
+      console.log("Usuário já está logado, redirecionando para dashboard");
+      router.push("/inicio");
     }
   }, [carregando, estaAutenticado, router, usuario]);
 

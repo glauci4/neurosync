@@ -1,118 +1,147 @@
 // app/pacientes/components/ItemPaciente.tsx
 // Card de paciente clicável com botão de ação textual conforme status de atendimento.
 
-'use client';
+"use client";
 
-import { User, Smartphone, Mail } from 'lucide-react';
-import { HiOutlineIdentification } from 'react-icons/hi'; // ícone de documento de identidade para CPF
-import { formatarTelefone, formatarCPF } from '@/lib/utils';
+import { Mail, Smartphone, User } from "lucide-react"; // BadgeCheck removido da importação
+import { HiOutlineIdentification } from "react-icons/hi";
+import { formatarCPF, formatarTelefone } from "@/lib/utils";
 
 interface Paciente {
-    id: number;
-    nome: string;
-    telefone: string;
-    email: string | null;
-    cpf: string | null;
-    ativo: boolean;
-    tipo: 'adulto' | 'menor';
-    status_atendimento: 'fila_espera' | 'em_atendimento' | 'encerrado';
+  id: number;
+  nome: string;
+  telefone: string;
+  email: string | null;
+  cpf: string | null;
+  ativo: boolean;
+  tipo: "adulto" | "menor";
+  status_atendimento: "fila_espera" | "em_atendimento" | "encerrado";
+  psicologo_responsavel_id?: number | null;
+  psicologo_responsavel_nome?: string | null;
 }
 
 interface ItemPacienteProps {
-    paciente: Paciente;
-    onIniciarAtendimento: (id: number) => void;
-    onEncerrarAtendimento: (id: number) => void;
-    onRetomarAtendimento: (id: number) => void;
-    onAbrirDetalhes: (id: number) => void;
+  paciente: Paciente;
+  onIniciarAtendimento: (id: number) => void;
+  onEncerrarAtendimento: (id: number) => void;
+  onRetomarAtendimento: (id: number) => void;
+  onAbrirDetalhes: (id: number) => void;
 }
 
-// Mapeia o texto do botão conforme o status (apenas para pacientes ativos)
 const acaoTexto: Record<string, string> = {
-    fila_espera: 'Iniciar atendimento',
-    em_atendimento: 'Encerrar atendimento',
-    encerrado: 'Retomar atendimento',
+  fila_espera: "Iniciar atendimento",
+  em_atendimento: "Encerrar atendimento",
+  encerrado: "Retomar atendimento",
 };
 
 export default function ItemPaciente({
-    paciente,
-    onIniciarAtendimento,
-    onEncerrarAtendimento,
-    onRetomarAtendimento,
-    onAbrirDetalhes,
+  paciente,
+  onIniciarAtendimento,
+  onEncerrarAtendimento,
+  onRetomarAtendimento,
+  onAbrirDetalhes,
 }: ItemPacienteProps) {
-    const status = paciente.status_atendimento;
-    const isAtivo = paciente.ativo;
+  const status = paciente.status_atendimento;
+  const isAtivo = paciente.ativo;
+  const responsavelNome = paciente.psicologo_responsavel_nome?.trim();
 
-    // Função que chama a ação correta com base no status (somente se ativo)
-    const handleAcao = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!isAtivo) return;
-        if (status === 'fila_espera') onIniciarAtendimento(paciente.id);
-        else if (status === 'em_atendimento') onEncerrarAtendimento(paciente.id);
-        else if (status === 'encerrado') onRetomarAtendimento(paciente.id);
-    };
+  const handleAcao = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isAtivo) return;
+    if (status === "fila_espera") onIniciarAtendimento(paciente.id);
+    else if (status === "em_atendimento") onEncerrarAtendimento(paciente.id);
+    else if (status === "encerrado") onRetomarAtendimento(paciente.id);
+  };
 
-    return (
-        <div
-            onClick={() => onAbrirDetalhes(paciente.id)}
-            className="flex items-center justify-between p-4 bg-white/80 backdrop-blur-sm rounded-xl border border-gray-100 hover:shadow-md hover:bg-gray-50/50 transition-all duration-200 cursor-pointer group"
-        >
-            {/* Informações do paciente */}
-            <div className="flex-1">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <User size={16} className="text-gray-400 shrink-0" />
-                    <h3 className="text-base font-semibold text-gray-800">{paciente.nome}</h3>
-                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
-                        {paciente.tipo === 'adulto' ? 'Adulto' : 'Menor'}
-                    </span>
-                    {/* Badge do status de atendimento */}
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        status === 'fila_espera' ? 'bg-yellow-100 text-yellow-700' :
-                        status === 'em_atendimento' ? 'bg-green-100 text-green-700' :
-                        'bg-gray-100 text-gray-500'
-                    }`}>
-                        {status === 'fila_espera' && 'Fila de Espera'}
-                        {status === 'em_atendimento' && 'Em Atendimento'}
-                        {status === 'encerrado' && 'Encerrado'}
-                    </span>
-                    {/* Badge adicional para paciente inativo */}
-                    {!isAtivo && (
-                          <span className="text-xs px-2 py-0.5 bg-gray-400 text-gray-900 rounded-full">
-                            Inativo
-                        </span>
-                    )}
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                    {paciente.telefone && (
-                        <div className="flex items-center gap-1 text-gray-500">
-                            <Smartphone size={12} /> {/* Ícone de smartphone */}
-                            <span>{formatarTelefone(paciente.telefone)}</span>
-                        </div>
-                    )}
-                    {paciente.email && (
-                        <div className="flex items-center gap-1 text-gray-500">
-                            <Mail size={12} />
-                            <span className="truncate max-w-[200px]">{paciente.email}</span>
-                        </div>
-                    )}
-                    {paciente.cpf && (
-                        <div className="flex items-center gap-1 text-gray-500">
-                            <HiOutlineIdentification size={12} /> {/* Ícone de identificação para CPF */}
-                            <span>{formatarCPF(paciente.cpf)}</span>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Botão de ação textual, só aparece se paciente estiver ativo */}
-            {isAtivo && (
-                <button
-                    onClick={handleAcao}
-                    className="px-4 py-2 rounded-lg text-sm font-medium transition bg-gray-100 text-gray-700 hover:bg-[#9F64AF] hover:text-white shadow-sm"
-                >
-                    {acaoTexto[status]}
-                </button>
-            )}
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onAbrirDetalhes(paciente.id)}
+      onKeyDown={(evento) => {
+        if (evento.key === "Enter" || evento.key === " ") {
+          evento.preventDefault();
+          onAbrirDetalhes(paciente.id);
+        }
+      }}
+      className="group flex cursor-pointer items-center justify-between rounded-xl border border-gray-100 bg-white/80 p-4 backdrop-blur-sm transition-all duration-200 hover:bg-gray-50/50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#9F64AF]/40"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <User size={16} className="shrink-0 text-gray-400" />
+          <h3 className="text-base font-semibold text-gray-800">
+            {paciente.nome}
+          </h3>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+            {paciente.tipo === "adulto" ? "Adulto" : "Menor"}
+          </span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs ${
+              status === "fila_espera"
+                ? "bg-yellow-100 text-yellow-700"
+                : status === "em_atendimento"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-gray-100 text-gray-500"
+            }`}
+          >
+            {status === "fila_espera" && "Fila de Espera"}
+            {status === "em_atendimento" && "Em Atendimento"}
+            {status === "encerrado" && "Encerrado"}
+          </span>
+          {!isAtivo && (
+            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">
+              Inativo
+            </span>
+          )}
+          {/* Badge do psicólogo responsável – sem ícone de verificação */}
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${
+              responsavelNome
+                ? "bg-[#F3EAF8] text-[#6F4E7A]"
+                : "bg-slate-100 text-slate-500"
+            }`}
+            title={
+              responsavelNome
+                ? `Psicólogo responsável: ${responsavelNome}`
+                : "Sem responsável clínico"
+            }
+          >
+            <span className="max-w-[180px] truncate">
+              {responsavelNome ? responsavelNome : "Sem responsável"}
+            </span>
+          </span>
         </div>
-    );
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          {paciente.telefone && (
+            <div className="flex items-center gap-1 text-gray-500">
+              <Smartphone size={12} />
+              <span>{formatarTelefone(paciente.telefone)}</span>
+            </div>
+          )}
+          {paciente.email && (
+            <div className="flex items-center gap-1 text-gray-500">
+              <Mail size={12} />
+              <span className="max-w-[200px] truncate">{paciente.email}</span>
+            </div>
+          )}
+          {paciente.cpf && (
+            <div className="flex items-center gap-1 text-gray-500">
+              <HiOutlineIdentification size={12} />
+              <span>{formatarCPF(paciente.cpf)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isAtivo && (
+        <button
+          type="button"
+          onClick={handleAcao}
+          className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-[#9F64AF] hover:text-white"
+        >
+          {acaoTexto[status]}
+        </button>
+      )}
+    </div>
+  );
 }

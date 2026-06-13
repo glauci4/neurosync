@@ -2,13 +2,13 @@
 // Contexto para gerenciar o estado da sidebar (recolhida/expandida)
 // Permite que o estado seja compartilhado entre a sidebar e o conteúdo principal
 
-'use client';
+"use client";
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, type ReactNode, useContext, useState } from "react";
 
 // Tipo que define o contexto da sidebar
 interface SidebarContextType {
-  isCollapsed: boolean;      // Estado: true = recolhida, false = expandida
+  isCollapsed: boolean; // Estado: true = recolhida, false = expandida
   toggleSidebar: () => void; // Função para alternar entre recolhida e expandida
   setCollapsed: (collapsed: boolean) => void; // Função para definir estado específico
 }
@@ -24,7 +24,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 
   // Função para alternar entre recolhida e expandida
   const toggleSidebar = () => {
-    setIsCollapsed(prev => !prev);
+    setIsCollapsed((prev) => !prev);
   };
 
   // Função para definir um estado específico
@@ -49,7 +49,8 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 export function useSidebar() {
   const context = useContext(SidebarContext);
   if (context === undefined) {
-    throw new Error('useSidebar deve ser usado dentro de um SidebarProvider');
+    throw new Error("useSidebar deve ser usado dentro de um SidebarProvider");
   }
   return context;
 }
+

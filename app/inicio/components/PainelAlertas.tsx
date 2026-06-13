@@ -1,15 +1,15 @@
 // app/inicio/components/PainelAlertas.tsx
 // Painel lateral com alertas e avisos importantes
 
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
-import { AlertTriangle, Calendar, Users, Bell, X } from 'lucide-react';
-import { useState } from 'react';
+import { motion } from "framer-motion";
+import { AlertTriangle, Bell, Calendar, Users, X } from "lucide-react";
+import { useState } from "react";
 
 type Alerta = {
   id: number;
-  tipo: 'falta' | 'consulta_amanha' | 'novo_paciente' | 'aviso' | string;
+  tipo: "falta" | "consulta_amanha" | "novo_paciente" | "aviso" | string;
   mensagem: string;
   data?: string;
 };
@@ -19,18 +19,21 @@ interface PainelAlertasProps {
 }
 
 // Icone para cada tipo de alerta
-const iconePorTipo: Record<string, { icone: typeof AlertTriangle; cor: string }> = {
-  falta: { icone: AlertTriangle, cor: 'text-orange-500' },
-  consulta_amanha: { icone: Calendar, cor: 'text-blue-500' },
-  novo_paciente: { icone: Users, cor: 'text-green-500' },
-  aviso: { icone: Bell, cor: 'text-purple-500' },
+const iconePorTipo: Record<
+  string,
+  { icone: typeof AlertTriangle; cor: string }
+> = {
+  falta: { icone: AlertTriangle, cor: "text-orange-500" },
+  consulta_amanha: { icone: Calendar, cor: "text-blue-500" },
+  novo_paciente: { icone: Users, cor: "text-green-500" },
+  aviso: { icone: Bell, cor: "text-purple-500" },
 };
 
 export default function PainelAlertas({ alertas }: PainelAlertasProps) {
   const [alertasVisiveis, setAlertasVisiveis] = useState(alertas);
 
   const removerAlerta = (id: number) => {
-    setAlertasVisiveis(alertasVisiveis.filter(a => a.id !== id));
+    setAlertasVisiveis(alertasVisiveis.filter((a) => a.id !== id));
   };
 
   if (alertasVisiveis.length === 0) {
@@ -58,12 +61,12 @@ export default function PainelAlertas({ alertas }: PainelAlertasProps) {
       className="bg-white rounded-2xl shadow-lg p-6"
     >
       <h2 className="text-xl font-semibold text-gray-800 mb-4">Alertas</h2>
-      
+
       <div className="space-y-3">
         {alertasVisiveis.map((alerta, index) => {
           const config = iconePorTipo[alerta.tipo] || iconePorTipo.aviso;
           const Icone = config.icone;
-          
+
           return (
             <motion.div
               key={alerta.id}
@@ -94,3 +97,4 @@ export default function PainelAlertas({ alertas }: PainelAlertasProps) {
     </motion.div>
   );
 }
+

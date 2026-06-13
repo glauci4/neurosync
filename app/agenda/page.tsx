@@ -1,17 +1,17 @@
-// app/agenda/page.tsx
-// Página temporária da agenda, redireciona para a página de início
-
-'use client';
-
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { Suspense } from "react";
+import AgendaPage from "./components/AgendaPage";
 
 export default function Agenda() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.push('/inicio');
-  }, [router]);
-
-  return null;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#F3EAF8] to-[#E1D4F0]">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#9F64AF] border-t-transparent" />
+        </div>
+      }
+    >
+      <AgendaPage />
+    </Suspense>
+  );
 }
+

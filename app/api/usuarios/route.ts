@@ -1,60 +1,51 @@
 // app/api/usuarios/route.ts
-// API para cadastro de usuários com validação de campos, verificação de duplicidade de email, associação com clínica via CNPJ e criação de perfil (secretária ou psicólogo).
 
+import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { getConnection } from "@/lib/mysql";
 import {
+  gerarHashSenha,
   validarCNPJ,
+  validarCPF,
   validarCRP,
   validarEmail,
   validarSenhaForte,
-  gerarHashSenha,
 } from "@/lib/validacoes";
-import { RowDataPacket } from "mysql2";
 
-// Interface para tipar os dados que serão recebidos do front-end
-interface UsuarioCadastro {
-  nome: string;
-  email: string;
-  senha: string;
-  confirmarSenha: string;
-  perfil_id: number;  // 1 = secretaria, 2 = psicologo
-  cnpj: string;
-  crp?: string;
+function somenteNumeros(valor: string) {
+  return valor.replace(/\D/g, "");
 }
 
-// Método POST para criar novos usuários
 export async function POST(request: Request) {
   let connection = null;
 
   try {
-    // Recebe os dados enviados pelo front-end
     const body = await request.json();
-    const { nome, email, senha, confirmarSenha, perfil_id, cnpj, crp } = body;
+    const { nome, email, senha, confirmarSenha, perfil_id, cnpj, crp, cpf } =
+      body;
 
-    console.log('Dados recebidos:', { nome, email, perfil_id, cnpj });
+    console.log("Dados recebidos:", { nome, email, perfil_id, cnpj, cpf });
 
-    // Validações de campos obrigatórios
+    // Validações de campos obrigatórios (cpf adicionado dinamicamente abaixo)
     if (!nome || !email || !senha || !confirmarSenha || !perfil_id || !cnpj) {
       return Response.json(
         { error: "Todos os campos são obrigatórios." },
         { status: 400 },
       );
     }
-    
-    // Validar se perfil_id é válido (1 ou 2)
+
     if (perfil_id !== 1 && perfil_id !== 2) {
       return Response.json(
-        { error: "Perfil inválido. Use 1 para Secretária ou 2 para Psicólogo." },
+        {
+          error: "Perfil inválido. Use 1 para Secretária ou 2 para Psicólogo.",
+        },
         { status: 400 },
       );
     }
 
-    // Valida email
     if (!validarEmail(email)) {
       return Response.json({ error: "Email inválido." }, { status: 400 });
     }
 
-    // Verifica se as senhas coincidem
     if (senha !== confirmarSenha) {
       return Response.json(
         { error: "As senhas não coincidem." },
@@ -62,7 +53,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Valida força da senha
     const validacaoSenha = validarSenhaForte(senha);
     if (!validacaoSenha.valida) {
       return Response.json(
@@ -71,13 +61,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // Valida CNPJ
-    if (!validarCNPJ(cnpj)) {
+    const cnpjLimpo = somenteNumeros(cnpj);
+
+    if (!validarCNPJ(cnpjLimpo)) {
       return Response.json({ error: "CNPJ inválido." }, { status: 400 });
     }
 
-    // Valida CRP apenas para psicólogos (perfil_id = 2)
+    // Validações específicas por perfil
     if (perfil_id === 2) {
+      // Psicólogo: CRP obrigatório e válido
       if (!crp) {
         return Response.json(
           { error: "CRP é obrigatório para psicólogos." },
@@ -92,17 +84,35 @@ export async function POST(request: Request) {
       }
     }
 
-    connection = await getConnection();
+    // Validação do CPF para secretária
+    if (perfil_id === 1) {
+      if (!cpf) {
+        return Response.json(
+          { error: "CPF é obrigatório para secretárias." },
+          { status: 400 },
+        );
+      }
+      // Remove formatação e valida
+      const cpfLimpo = somenteNumeros(cpf);
+      if (!validarCPF(cpfLimpo)) {
+        return Response.json(
+          { error: "CPF inválido. Verifique os dígitos." },
+          { status: 400 },
+        );
+      }
+    }
 
-    // Conecta ao banco de dados
     connection = await getConnection();
+    const [colunasResponsavelClinica] = await connection.execute<
+      RowDataPacket[]
+    >("SHOW COLUMNS FROM clinicas LIKE 'responsavel_clinica_id'");
+    const colunaResponsavelExiste = colunasResponsavelClinica.length > 0;
 
     // Verifica se o email já está cadastrado
     const [emailsExistentes] = await connection.execute<RowDataPacket[]>(
       "SELECT id FROM usuarios WHERE email = ?",
       [email],
     );
-
     if (emailsExistentes.length > 0) {
       return Response.json(
         { error: "Este email já está cadastrado." },
@@ -110,54 +120,99 @@ export async function POST(request: Request) {
       );
     }
 
-    // Busca clínica pelo CNPJ
-    let [clinicas] = await connection.execute<RowDataPacket[]>(
+    // Verifica se o CPF já está cadastrado (apenas se foi informado)
+    if (cpf) {
+      const cpfLimpo = somenteNumeros(cpf);
+      const [cpfsExistentes] = await connection.execute<RowDataPacket[]>(
+        "SELECT id FROM usuarios WHERE cpf = ?",
+        [cpfLimpo],
+      );
+      if (cpfsExistentes.length > 0) {
+        return Response.json(
+          { error: "Este CPF já está cadastrado no sistema." },
+          { status: 400 },
+        );
+      }
+    }
+
+    await connection.beginTransaction();
+
+    // Busca clínica pelo CNPJ (mesmo código)
+    const [clinicas] = await connection.execute<RowDataPacket[]>(
       "SELECT id FROM clinicas WHERE cnpj = ?",
-      [cnpj],
+      [cnpjLimpo],
     );
-
     let clinicaId: number;
-
-    console.log("Resultado da busca da clínica:", clinicas);
-
+    let clinicaCriadaNesteCadastro = false;
     if (clinicas.length === 0) {
-      // Se não encontrar, cria uma nova clínica com dados básicos
       console.log("Clínica não encontrada, criando nova...");
-      const [resultado] = await connection.execute(
+      const [resultado] = await connection.execute<ResultSetHeader>(
         `INSERT INTO clinicas (cnpj, nome_fantasia, razao_social) 
          VALUES (?, ?, ?)`,
-        [cnpj, "Clínica a definir", "Clínica a definir"],
+        [cnpjLimpo, "Clínica a definir", "Clínica a definir"],
       );
-      clinicaId = (resultado as any).insertId;
-      console.log("Clínica criada com ID:", clinicaId);
+      clinicaId = resultado.insertId;
+      clinicaCriadaNesteCadastro = true;
     } else {
       clinicaId = clinicas[0].id;
-      console.log("Clínica encontrada com ID:", clinicaId);
     }
 
     // Gera hash da senha
     const hashSenha = await gerarHashSenha(senha);
 
-     // Insere novo usuário com perfil_id
-    const [resultado] = await connection.execute(
-      `INSERT INTO usuarios 
-       (nome, email, senha_hash, perfil_id, clinica_id, crp) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [nome, email, hashSenha, perfil_id, clinicaId, crp || null],
+    // Prepara o CPF (apenas números) ou NULL para psicólogo
+    const cpfFinal = perfil_id === 1 ? somenteNumeros(cpf) : null;
+
+    // Insere novo usuário sem criar perfil administrativo paralelo.
+    // A responsabilidade institucional é gravada em clinicas.responsavel_clinica_id.
+    const camposInsercao =
+      "(nome, email, senha_hash, perfil_id, clinica_id, crp, cpf)";
+    const valoresInsercao = [
+      nome,
+      email,
+      hashSenha,
+      perfil_id,
+      clinicaId,
+      crp || null,
+      cpfFinal,
+    ];
+
+    const [resultado] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO usuarios ${camposInsercao} VALUES (${valoresInsercao.map(() => "?").join(", ")})`,
+      valoresInsercao,
     );
 
-    console.log('Usuário cadastrado com sucesso!');
+    if (perfil_id === 2 && colunaResponsavelExiste) {
+      const [clinicaAtual] = await connection.execute<RowDataPacket[]>(
+        "SELECT responsavel_clinica_id FROM clinicas WHERE id = ? LIMIT 1",
+        [clinicaId],
+      );
+      const responsavelAtual = clinicaAtual[0]?.responsavel_clinica_id || null;
+
+      if (clinicaCriadaNesteCadastro || !responsavelAtual) {
+        await connection.execute(
+          "UPDATE clinicas SET responsavel_clinica_id = ? WHERE id = ?",
+          [resultado.insertId, clinicaId],
+        );
+      }
+    }
+
+    await connection.commit();
+
+    console.log("Usuário cadastrado com sucesso!");
 
     return Response.json({
       success: true,
       message: "Usuário cadastrado com sucesso!",
-      usuarioId: (resultado as any).insertId,
+      usuarioId: resultado.insertId,
     });
-    
   } catch (error) {
+    if (connection) {
+      await connection.rollback().catch(() => undefined);
+    }
     console.error("Erro detalhado no cadastro:", error);
     return Response.json(
-      { error: "Erro interno do servidor: " + (error as Error).message },
+      { error: `Erro interno do servidor: ${(error as Error).message}` },
       { status: 500 },
     );
   } finally {
@@ -166,3 +221,4 @@ export async function POST(request: Request) {
     }
   }
 }
+

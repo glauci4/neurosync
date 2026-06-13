@@ -1,145 +1,111 @@
-// app/api/recuperacao-senha/redefinir/route.ts
-// API para redefinir a senha usando o token enviado por e-mail. Essa API é chamada quando o usuário acessa o link de redefinição de senha, ela valida o token, verifica a nova senha e atualiza o banco de dados.
-
+import type { RowDataPacket } from "mysql2";
 import { getConnection } from "@/lib/mysql";
-import { validarSenhaForte, gerarHashSenha } from "@/lib/validacoes";
-import { RowDataPacket } from "mysql2";
+import {
+  compararSenha,
+  gerarHashSenha,
+  validarSenhaForte,
+} from "@/lib/validacoes";
 
-// Função responsável por processar a redefinição de senha
+type ConexaoMySQL = Awaited<ReturnType<typeof getConnection>>;
+
+async function buscarRecuperacao(connection: ConexaoMySQL, token: string) {
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    `SELECT rs.id, rs.usuario_id, rs.expira_em, rs.usado, u.senha_hash, u.ativo
+       FROM recuperacao_senha rs
+       INNER JOIN usuarios u ON u.id = rs.usuario_id
+      WHERE rs.token = ?
+      LIMIT 1`,
+    [token],
+  );
+
+  return rows[0] || null;
+}
+
 export async function POST(request: Request) {
-  // Variável para armazenar a conexão com o banco de dados
-  let connection = null;
-  
+  let connection: ConexaoMySQL | undefined;
+
   try {
-    // Obtém os dados enviados no corpo da requisição
     const body = await request.json();
-    const { token, novaSenha, confirmarSenha } = body;
-    
-    // Exibe parte do token no log para fins de auditoria e depuração
-    console.log(`Tentativa de redefinição com token: ${token?.substring(0, 20)}...`);
-    
-    // Validação: verifica se todos os campos foram preenchidos
-    if (!token || !novaSenha || !confirmarSenha) {
+    const token = String(body.token || "").trim();
+    const novaSenha = String(body.novaSenha || "");
+    const confirmarSenha = String(body.confirmarSenha || "");
+
+    if (!token) {
+      return Response.json({ error: "Token inválido" }, { status: 400 });
+    }
+
+    if (!novaSenha || !confirmarSenha) {
       return Response.json(
-        { error: "Todos os campos são obrigatórios" },
-        { status: 400 }
+        { error: "Preencha e confirme a nova senha." },
+        { status: 400 },
       );
     }
-    
-    // Validação: verifica se as senhas informadas coincidem
+
     if (novaSenha !== confirmarSenha) {
       return Response.json(
-        { error: "As senhas não coincidem" },
-        { status: 400 }
+        { error: "As senhas não coincidem." },
+        { status: 400 },
       );
     }
-    
-    // Validação: verifica se a senha atende aos critérios de segurança
-    const validacaoSenha = validarSenhaForte(novaSenha);
-    if (!validacaoSenha.valida) {
-      return Response.json(
-        { error: validacaoSenha.mensagem },
-        { status: 400 }
-      );
+
+    const validacao = validarSenhaForte(novaSenha);
+    if (!validacao.valida) {
+      return Response.json({ error: validacao.mensagem }, { status: 400 });
     }
-    
-    // Estabelece a conexão com o banco de dados
+
     connection = await getConnection();
-    
-    // Tenta buscar o token com diferentes nomes de coluna, isso garante compatibilidade com bancos que utilizam "usuario_id" ou "usuarios_id"
-    let tokens: RowDataPacket[] = [];
-    let colunaUsuarioId = "";
-    
-    try {
-      // Primeira tentativa utilizando a coluna "usuario_id"
-      [tokens] = await connection.execute<RowDataPacket[]>(
-        `SELECT usuario_id, expira_em FROM recuperacao_senha WHERE token = ?`,
-        [token]
-      );
-      colunaUsuarioId = "usuario_id";
-    } catch (error: any) {
-      // Caso a coluna não exista, tenta utilizar "usuarios_id"
-      if (error.message?.includes("Unknown column")) {
-        [tokens] = await connection.execute<RowDataPacket[]>(
-          `SELECT usuarios_id, expira_em FROM recuperacao_senha WHERE token = ?`,
-          [token]
-        );
-        colunaUsuarioId = "usuarios_id";
-      } else {
-        // Lança o erro caso não seja relacionado ao nome da coluna
-        throw error;
-      }
-    }
-    
-    // Exibe a quantidade de tokens encontrados no log
-    console.log(`Tokens encontrados: ${tokens.length}`);
-    
-    // Verifica se o token é válido
-    if (tokens.length === 0) {
+    const recuperacao = await buscarRecuperacao(connection, token);
+
+    if (
+      !recuperacao ||
+      Number(recuperacao.usado) === 1 ||
+      Number(recuperacao.ativo) === 0 ||
+      new Date(String(recuperacao.expira_em)).getTime() < Date.now()
+    ) {
       return Response.json(
-        { error: "Token inválido" },
-        { status: 400 }
+        { error: "Token inválido ou expirado." },
+        { status: 400 },
       );
     }
-    
-    // Obtém os dados do token
-    const tokenData = tokens[0];
-    
-    // Identifica dinamicamente o ID do usuário
-    const usuarioId = tokenData[colunaUsuarioId];
-    
-    // Obtém a data atual e a data de expiração do token
-    const agora = new Date();
-    const expiraEm = new Date(tokenData.expira_em);
-    
-    console.log(`Token expira em: ${expiraEm}, Agora: ${agora}`);
-    
-    // Verifica se o token expirou
-    if (agora > expiraEm) {
+
+    const hashAtual = String(recuperacao.senha_hash || "");
+    const senhaMesma = await compararSenha(novaSenha, hashAtual);
+    if (senhaMesma) {
       return Response.json(
-        { error: "Este link expirou. Solicite uma nova recuperação" },
-        { status: 400 }
+        { error: "A nova senha deve ser diferente da senha atual." },
+        { status: 400 },
       );
     }
-    
-    // Gera o hash seguro da nova senha
-    const hashSenha = await gerarHashSenha(novaSenha);
-    
-    // Atualiza a senha do usuário no banco de dados
+
+    const novoHash = await gerarHashSenha(novaSenha);
+    await connection.beginTransaction();
+
     await connection.execute(
       "UPDATE usuarios SET senha_hash = ? WHERE id = ?",
-      [hashSenha, usuarioId]
+      [novoHash, recuperacao.usuario_id],
     );
-    
-    console.log(`Senha atualizada para o usuário ID: ${usuarioId}`);
-    
-    // Remove o token após o uso para evitar reutilização
+
     await connection.execute(
-      "DELETE FROM recuperacao_senha WHERE token = ?",
-      [token]
+      "UPDATE recuperacao_senha SET usado = 1 WHERE id = ?",
+      [recuperacao.id],
     );
-    
-    console.log("Token removido após uso");
-    
-    // Retorna resposta de sucesso
+
+    await connection.commit();
+
     return Response.json({
       success: true,
-      message: "Senha redefinida com sucesso!",
+      message: "Senha redefinida com sucesso.",
     });
-    
   } catch (error) {
-    // Exibe o erro no console para depuração
-    console.error("Erro na redefinição de senha:", error);
-    
-    // Retorna erro interno do servidor
+    if (connection) {
+      await connection.rollback().catch(() => null);
+    }
+    console.error("Erro ao redefinir senha:", error);
     return Response.json(
       { error: "Erro interno do servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   } finally {
-    // Encerra a conexão com o banco de dados
-    if (connection) {
-      await connection.end();
-    }
+    if (connection) await connection.end();
   }
 }

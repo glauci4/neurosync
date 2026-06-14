@@ -207,4 +207,3 @@ export async function DELETE(request: Request) {
     if (connection) await connection.end();
   }
 }
-

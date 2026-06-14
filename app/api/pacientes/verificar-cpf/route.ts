@@ -24,7 +24,8 @@ export async function GET(request: Request) {
     }
 
     const sql =
-      "SELECT id FROM pacientes WHERE cpf = ?" + (paciente_id ? " AND id != ?" : "");
+      "SELECT id FROM pacientes WHERE cpf = ?" +
+      (paciente_id ? " AND id != ?" : "");
     const params: Array<string | number> = [cpf];
 
     if (paciente_id) {

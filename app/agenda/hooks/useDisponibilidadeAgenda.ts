@@ -66,4 +66,3 @@ export function useDisponibilidadeAgenda({
     gcTime: 1000 * 60 * 5,
   });
 }
-

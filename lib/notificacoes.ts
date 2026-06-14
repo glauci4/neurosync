@@ -136,4 +136,3 @@ export function montarMensagemNotificacaoConsulta({
 
   return `Seu atendimento com ${pacienteNome} está agendado para ${dataConsulta} às ${horario} na ${sala}.`;
 }
-

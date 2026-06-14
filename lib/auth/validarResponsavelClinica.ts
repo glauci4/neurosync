@@ -18,4 +18,3 @@ import { carregarSessaoClinica } from "./validarAcesso";
 export async function validarResponsavelClinica(connection: ConexaoMySQLBase) {
   return carregarSessaoClinica(connection);
 }
-

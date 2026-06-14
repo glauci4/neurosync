@@ -5,8 +5,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFiltrosAgenda } from "@/app/agenda/hooks/useAgenda";
+import ModalNovaConsulta from "@/app/agenda/components/ModalNovaConsulta";
 import { useSidebar } from "@/app/context/SidebarContext";
 import Sidebar from "@/app/inicio/components/Sidebar";
 import { useAlternarStatusPaciente } from "@/hooks/useAlternarStatusPaciente";
@@ -33,7 +34,6 @@ export default function PacientesPage() {
     carregando: authCarregando,
     fazerLogout,
   } = useAutenticacao();
-  const router = useRouter();
   const { isCollapsed } = useSidebar();
 
   // ESTADOS
@@ -56,6 +56,11 @@ export default function PacientesPage() {
     null,
   );
   const [modalImportacaoAberto, setModalImportacaoAberto] = useState(false);
+  const [modalNovaConsultaAberto, setModalNovaConsultaAberto] = useState(false);
+  const [valoresIniciaisConsulta, setValoresIniciaisConsulta] = useState<{
+    data_consulta?: string;
+    paciente_id?: number;
+  }>();
 
   // Estado para o modal de confirmação (inativar/reativar/excluir)
   const [modalConfig, setModalConfig] = useState<{
@@ -77,6 +82,7 @@ export default function PacientesPage() {
   const { mutate: excluirPaciente } = useExcluirPaciente();
   const { mutateAsync: atualizarStatusAtendimento } =
     useAtualizarStatusAtendimento();
+  const { data: filtrosAgenda } = useFiltrosAgenda();
 
   // DEBOUNCE DA BUSCA
   const handleBuscaChange = useCallback((valor: string) => {
@@ -100,6 +106,44 @@ export default function PacientesPage() {
   const pacientes = data?.data || [];
   const totalRegistros = data?.paginacao?.total || 0;
   const totalPaginas = data?.paginacao?.totalPages || 1;
+  const pacientesAgenda = useMemo(() => {
+    const lista =
+      filtrosAgenda?.data?.pacientes?.map((item) => ({
+        valor: String(item.id),
+        label: item.nome,
+      })) || [];
+    if (!valoresIniciaisConsulta?.paciente_id) return lista;
+
+    const pacienteSelecionado = pacientes.find(
+      (item) => item.id === valoresIniciaisConsulta.paciente_id,
+    );
+    if (!pacienteSelecionado) return lista;
+
+    const valor = String(pacienteSelecionado.id);
+    if (lista.some((item) => item.valor === valor)) return lista;
+
+    return [...lista, { valor, label: pacienteSelecionado.nome }];
+  }, [
+    filtrosAgenda?.data?.pacientes,
+    pacientes,
+    valoresIniciaisConsulta?.paciente_id,
+  ]);
+  const psicologosAgenda = useMemo(
+    () =>
+      (filtrosAgenda?.data?.psicologos || []).map((item) => ({
+        valor: String(item.id),
+        label: item.tipo ? `${item.nome} (${item.tipo})` : item.nome,
+      })),
+    [filtrosAgenda?.data?.psicologos],
+  );
+  const salasAgenda = useMemo(
+    () =>
+      (filtrosAgenda?.data?.salas || []).map((item) => ({
+        valor: String(item.id),
+        label: item.tipo ? `${item.nome} (${item.tipo})` : item.nome,
+      })),
+    [filtrosAgenda?.data?.salas],
+  );
 
   // EFEITO PARA ABRIR O MODAL DE CADASTRO SE HOUVER O PARÂMETRO "cadastrar=1" NA URL (ex: após cadastro rápido ou clique em "Cadastrar novo paciente" na barra de filtros)
   useEffect(() => {
@@ -177,11 +221,10 @@ export default function PacientesPage() {
   const handleIniciarAtendimento = async (id: number) => {
     await atualizarStatusAtendimento({ id, status: "em_atendimento" });
     setModalDetalhesAberto(false);
-    sessionStorage.setItem(
-      "neurosync:nova_consulta_paciente",
-      JSON.stringify({ paciente_id: id, abrir_nova_consulta: "1" }),
-    );
-    router.push(`/agenda?abrir_nova_consulta=1&paciente_agendar_id=${id}`);
+    setValoresIniciaisConsulta({
+      paciente_id: id,
+    });
+    setModalNovaConsultaAberto(true);
   };
 
   const handleEncerrarAtendimento = (id: number) => {
@@ -304,6 +347,9 @@ export default function PacientesPage() {
               onMudarPagina={handleMudarPagina}
               buscaAtiva={buscaDebounce !== ""}
               onAbrirDetalhes={handleAbrirDetalhes}
+              onIniciarAtendimento={handleIniciarAtendimento}
+              onEncerrarAtendimento={handleEncerrarAtendimento}
+              onRetomarAtendimento={handleRetomarAtendimento}
             />
           </motion.div>
         </div>
@@ -345,6 +391,24 @@ export default function PacientesPage() {
           onRetomarAtendimento={handleRetomarAtendimento}
         />
       )}
+
+      <ModalNovaConsulta
+        aberto={modalNovaConsultaAberto}
+        onClose={() => {
+          setModalNovaConsultaAberto(false);
+          setValoresIniciaisConsulta(undefined);
+        }}
+        pacientes={pacientesAgenda}
+        psicologos={psicologosAgenda}
+        salas={salasAgenda}
+        valoresIniciais={valoresIniciaisConsulta}
+        modo="criar"
+        onSuccess={() => {
+          refetch();
+          setModalNovaConsultaAberto(false);
+          setValoresIniciaisConsulta(undefined);
+        }}
+      />
 
       <ConfirmarAcaoModal
         isOpen={modalConfig.isOpen}

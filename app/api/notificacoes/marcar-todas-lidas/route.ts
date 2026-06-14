@@ -37,4 +37,3 @@ export async function PATCH() {
     if (connection) await connection.end();
   }
 }
-

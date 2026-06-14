@@ -180,4 +180,3 @@ export async function DELETE() {
     if (connection) await connection.end();
   }
 }
-

@@ -160,4 +160,3 @@ export async function removerAssinaturaClinica() {
   });
   return tratarResposta(resposta);
 }
-

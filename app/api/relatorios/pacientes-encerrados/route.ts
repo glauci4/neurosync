@@ -41,4 +41,3 @@ export async function GET() {
     if (connection) await connection.end();
   }
 }
-

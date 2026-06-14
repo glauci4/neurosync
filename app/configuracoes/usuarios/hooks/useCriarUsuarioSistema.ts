@@ -17,4 +17,3 @@ export function useCriarUsuarioSistema() {
     onError: (error: Error) => toast.error(error.message),
   });
 }
-

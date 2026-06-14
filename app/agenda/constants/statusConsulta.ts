@@ -5,4 +5,3 @@ export {
   agendaStatusOpcoes as STATUS_CONSULTA_OPCOES,
   obterAgendaStatusConfig as obterStatusConsultaConfig,
 } from "./agendaStatusConfig";
-

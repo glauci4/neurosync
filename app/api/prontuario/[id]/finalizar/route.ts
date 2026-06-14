@@ -3,6 +3,7 @@ import { getConnection } from "@/lib/mysql";
 import {
   type ConexaoMySQL,
   obterSessaoProntuario,
+  validarConteudoRegistroClinico,
   validarAcessoProntuario,
   validarPsicologo,
 } from "../../utils";
@@ -43,11 +44,11 @@ export async function POST(_request: Request, context: RouteContext) {
         { status: 400 },
       );
     }
-    if (!String(evolucao.conteudo || "").trim()) {
-      return Response.json(
-        { error: "Conteúdo da evolução é obrigatório para finalizar" },
-        { status: 400 },
-      );
+    const erroConteudo = validarConteudoRegistroClinico(
+      String(evolucao.conteudo || ""),
+    );
+    if (erroConteudo) {
+      return Response.json({ error: erroConteudo }, { status: 400 });
     }
 
     // Status finalizado bloqueia edição livre e prepara a assinatura clínica.
@@ -74,4 +75,3 @@ export async function POST(_request: Request, context: RouteContext) {
     if (connection) await connection.end();
   }
 }
-

@@ -111,4 +111,3 @@ export function useCadastroPaciente() {
     reset: mutation.reset, // Permite resetar os estados do formulário
   };
 }
-

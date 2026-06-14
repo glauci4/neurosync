@@ -43,4 +43,3 @@ export interface RegistroClinicoPayload {
   conteudo: string;
   finalizar?: boolean;
 }
-

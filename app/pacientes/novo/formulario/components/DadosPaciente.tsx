@@ -347,7 +347,11 @@ const DadosPaciente = forwardRef<DadosPacienteRef, DadosPacienteProps>(
       const valorFinal = normalizarTextoLivre(generoOutroTexto);
       setGeneroOutroTexto(valorFinal);
       setFormData({ ...formData, genero: valorFinal });
-      setErrors((prev) => ({ ...prev, genero: undefined, genero_outro: undefined }));
+      setErrors((prev) => ({
+        ...prev,
+        genero: undefined,
+        genero_outro: undefined,
+      }));
     };
 
     // Validações específicas
@@ -487,7 +491,11 @@ const DadosPaciente = forwardRef<DadosPacienteRef, DadosPacienteProps>(
 
       const valorFinal = normalizarTextoLivre(generoOutroTexto);
       setFormData({ ...formData, genero: valorFinal });
-      setErrors((prev) => ({ ...prev, genero: undefined, genero_outro: undefined }));
+      setErrors((prev) => ({
+        ...prev,
+        genero: undefined,
+        genero_outro: undefined,
+      }));
       return true;
     };
 
@@ -643,7 +651,8 @@ const DadosPaciente = forwardRef<DadosPacienteRef, DadosPacienteProps>(
           novosErros.data_nascimento =
             "Paciente adulto deve ter 18 anos completos";
         } else if (tipo === "menor" && calcularIdade(dataNascimento) >= 18) {
-          novosErros.data_nascimento = "Paciente menor deve ter menos de 18 anos";
+          novosErros.data_nascimento =
+            "Paciente menor deve ter menos de 18 anos";
         }
       }
 
@@ -681,7 +690,10 @@ const DadosPaciente = forwardRef<DadosPacienteRef, DadosPacienteProps>(
         novosErros.telefone = "Telefone deve ter 10 ou 11 dígitos";
       }
 
-      const telefoneAlt = (formData.telefone_alternativo || "").replace(/\D/g, "");
+      const telefoneAlt = (formData.telefone_alternativo || "").replace(
+        /\D/g,
+        "",
+      );
       if (telefoneAlternativoObrigatorio && !telefoneAlt) {
         novosErros.telefone_alternativo =
           "Telefone alternativo é obrigatório (10 ou 11 dígitos)";
@@ -693,11 +705,7 @@ const DadosPaciente = forwardRef<DadosPacienteRef, DadosPacienteProps>(
           "Telefone alternativo deve ter 10 ou 11 dígitos";
       }
 
-      if (
-        telefone &&
-        telefoneAlt &&
-        telefone === telefoneAlt
-      ) {
+      if (telefone && telefoneAlt && telefone === telefoneAlt) {
         novosErros.telefone_alternativo =
           "Telefone alternativo não pode ser igual ao telefone principal";
       }
@@ -950,11 +958,11 @@ const DadosPaciente = forwardRef<DadosPacienteRef, DadosPacienteProps>(
             />
             {deveExibirErro("telefone_alternativo") &&
               errors.telefone_alternativo && (
-              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                <MdErrorOutline size={14} />
-                {errors.telefone_alternativo}
-              </p>
-            )}
+                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                  <MdErrorOutline size={14} />
+                  {errors.telefone_alternativo}
+                </p>
+              )}
           </div>
 
           {/* E-mail */}
@@ -1008,11 +1016,11 @@ const DadosPaciente = forwardRef<DadosPacienteRef, DadosPacienteProps>(
             />
             {deveExibirErro("descricao_deficiencia") &&
               errors.descricao_deficiencia && (
-              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                <MdErrorOutline size={14} />
-                {errors.descricao_deficiencia}
-              </p>
-            )}
+                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                  <MdErrorOutline size={14} />
+                  {errors.descricao_deficiencia}
+                </p>
+              )}
           </div>
         )}
 
@@ -1243,4 +1251,3 @@ const DadosPaciente = forwardRef<DadosPacienteRef, DadosPacienteProps>(
 
 DadosPaciente.displayName = "DadosPaciente";
 export default DadosPaciente;
-

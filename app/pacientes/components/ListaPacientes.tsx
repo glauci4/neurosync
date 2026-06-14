@@ -5,7 +5,6 @@
 "use client";
 
 import { AlertCircle } from "lucide-react";
-import { useAtualizarStatusAtendimento } from "@/hooks/useAtualizarStatusAtendimento";
 import EstadoVazio from "./EstadoVazio";
 import ItemPaciente from "./ItemPaciente";
 
@@ -36,6 +35,9 @@ interface ListaPacientesProps {
   onMudarPagina: (pagina: number) => void;
   buscaAtiva?: boolean; // Indica se há busca ativa
   onAbrirDetalhes: (id: number) => void; // Abre o modal de detalhes
+  onIniciarAtendimento: (id: number) => void;
+  onEncerrarAtendimento: (id: number) => void;
+  onRetomarAtendimento: (id: number) => void;
 }
 
 export default function ListaPacientes({
@@ -50,20 +52,10 @@ export default function ListaPacientes({
   onMudarPagina,
   buscaAtiva = false,
   onAbrirDetalhes,
+  onIniciarAtendimento,
+  onEncerrarAtendimento,
+  onRetomarAtendimento,
 }: ListaPacientesProps) {
-  const { mutate: atualizarStatus } = useAtualizarStatusAtendimento();
-
-  // Handlers para as ações de fluxo de atendimento
-  const handleIniciarAtendimento = (id: number) => {
-    atualizarStatus({ id, status: "em_atendimento" });
-  };
-  const handleEncerrarAtendimento = (id: number) => {
-    atualizarStatus({ id, status: "encerrado" });
-  };
-  const handleRetomarAtendimento = (id: number) => {
-    atualizarStatus({ id, status: "fila_espera" });
-  };
-
   // ESTADO DE CARREGAMENTO
   if (isLoading) {
     return (
@@ -131,9 +123,9 @@ export default function ListaPacientes({
         <ItemPaciente
           key={paciente.id}
           paciente={paciente}
-          onIniciarAtendimento={handleIniciarAtendimento}
-          onEncerrarAtendimento={handleEncerrarAtendimento}
-          onRetomarAtendimento={handleRetomarAtendimento}
+          onIniciarAtendimento={onIniciarAtendimento}
+          onEncerrarAtendimento={onEncerrarAtendimento}
+          onRetomarAtendimento={onRetomarAtendimento}
           onAbrirDetalhes={onAbrirDetalhes}
         />
       ))}
@@ -165,4 +157,3 @@ export default function ListaPacientes({
     </div>
   );
 }
-

@@ -14,4 +14,3 @@ export function usePacientesStatus(
     enabled: options.enabled ?? true,
   });
 }
-

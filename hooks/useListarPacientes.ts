@@ -140,4 +140,3 @@ export function useListarPacientes(params: ListarPacientesParams = {}) {
     refetchOnWindowFocus: false,
   });
 }
-

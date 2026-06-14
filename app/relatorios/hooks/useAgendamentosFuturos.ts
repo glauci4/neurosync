@@ -14,4 +14,3 @@ export function useAgendamentosFuturos(
     enabled: options.enabled ?? true,
   });
 }
-

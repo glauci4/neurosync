@@ -63,4 +63,3 @@ export function useBuscarPaciente(id: number) {
     staleTime: 5 * 60 * 1000,
   });
 }
-

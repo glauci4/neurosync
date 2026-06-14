@@ -82,4 +82,3 @@ export const CONFIGURACOES_PADRAO = {
   tempo_maximo_edicao_evolucao: 30,
   habilitar_auditoria_clinica: true,
 } as const;
-

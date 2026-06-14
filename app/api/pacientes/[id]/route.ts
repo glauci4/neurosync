@@ -281,17 +281,17 @@ export async function PUT(
     }
     if (dados.cpf) {
       const cpfNumeros = String(dados.cpf).replace(/\D/g, "");
-        const [duplicados] = await connection.execute<RowDataPacket[]>(
-          `SELECT id FROM pacientes
+      const [duplicados] = await connection.execute<RowDataPacket[]>(
+        `SELECT id FROM pacientes
                  WHERE cpf = ? AND id != ?`,
-          [cpfNumeros, pacienteId],
+        [cpfNumeros, pacienteId],
+      );
+      if (duplicados.length > 0) {
+        return Response.json(
+          { error: "Já existe um paciente cadastrado com este CPF." },
+          { status: 400 },
         );
-        if (duplicados.length > 0) {
-          return Response.json(
-            { error: "Já existe um paciente cadastrado com este CPF." },
-            { status: 400 },
-          );
-        }
+      }
     }
 
     if (dados.responsavel) {

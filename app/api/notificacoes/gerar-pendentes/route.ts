@@ -38,4 +38,3 @@ export async function POST() {
     if (connection) await connection.end();
   }
 }
-

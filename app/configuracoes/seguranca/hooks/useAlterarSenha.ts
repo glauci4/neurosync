@@ -6,4 +6,3 @@ export function useAlterarSenha() {
     mutationFn: alterarSenha,
   });
 }
-

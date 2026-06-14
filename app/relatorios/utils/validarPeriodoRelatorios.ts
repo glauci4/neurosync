@@ -93,4 +93,3 @@ export function validarPeriodoRelatorios(
 
   return resultado(erros);
 }
-

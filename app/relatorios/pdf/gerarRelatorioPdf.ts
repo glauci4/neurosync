@@ -88,4 +88,3 @@ export async function gerarRelatorioPdfBlob({
 
   return pdf(documento).toBlob();
 }
-

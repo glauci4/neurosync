@@ -62,4 +62,3 @@ export function useConsultaCnpj(cnpj: string) {
     staleTime: 5 * 60 * 1000,
   });
 }
-

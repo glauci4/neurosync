@@ -187,4 +187,3 @@ export default function Clinica({ podeEditar = false }: ClinicaProps) {
     </div>
   );
 }
-

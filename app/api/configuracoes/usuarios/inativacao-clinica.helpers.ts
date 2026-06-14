@@ -147,4 +147,3 @@ export async function listarPacientesVinculadosParaTransferencia(
       : null,
   })) as ListaVinculosPacienteTransferencia[];
 }
-

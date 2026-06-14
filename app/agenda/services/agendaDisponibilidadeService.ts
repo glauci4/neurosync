@@ -82,4 +82,3 @@ export async function buscarHorariosDisponiveisAgenda(
   );
   return tratarResposta(resposta);
 }
-

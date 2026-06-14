@@ -11,4 +11,3 @@ export function formatarMinutos(minutos: number): string {
   const m = minutos % 60;
   return `${h}h${m > 0 ? m + "min" : ""}`;
 }
-

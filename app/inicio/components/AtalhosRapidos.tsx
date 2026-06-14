@@ -116,4 +116,3 @@ export default function AtalhosRapidos({ perfilId }: AtalhosRapidosProps) {
     </motion.div>
   );
 }
-

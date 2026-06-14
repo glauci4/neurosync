@@ -97,4 +97,3 @@ export default function PainelAlertas({ alertas }: PainelAlertasProps) {
     </motion.div>
   );
 }
-

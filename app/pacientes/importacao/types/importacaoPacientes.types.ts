@@ -48,4 +48,3 @@ export interface ImportarPacientesResponse {
 export interface ImportarPacientesPayload {
   pacientes: LinhaImportacaoPaciente[];
 }
-

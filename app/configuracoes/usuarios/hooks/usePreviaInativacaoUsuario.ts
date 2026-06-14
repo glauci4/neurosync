@@ -8,4 +8,3 @@ export function usePreviaInativacaoUsuario() {
     onError: (error: Error) => toast.error(error.message),
   });
 }
-

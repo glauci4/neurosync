@@ -87,7 +87,7 @@ export async function PUT(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
-    const validacao = validarPayloadProntuario(body, false);
+    const validacao = validarPayloadProntuario(body);
     if ("erro" in validacao) {
       return Response.json({ error: validacao.erro }, { status: 400 });
     }
@@ -234,4 +234,3 @@ export async function DELETE(_request: Request, context: RouteContext) {
     if (connection) await connection.end();
   }
 }
-

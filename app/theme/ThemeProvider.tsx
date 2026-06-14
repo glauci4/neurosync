@@ -68,4 +68,3 @@ export function useThemePreference() {
 
   return context;
 }
-

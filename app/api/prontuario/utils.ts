@@ -36,11 +36,43 @@ export const MENSAGEM_CONSULTA_REALIZADA_OBRIGATORIA =
 
 const STATUS_CONSULTA_PRONTUARIO_LIBERADO = [
   "em_andamento",
+  "iniciado",
+  "iniciada",
   "concluido",
   "concluida",
   "realizado",
   "realizada",
 ];
+
+const STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL = [
+  "agendado",
+  "agendada",
+  "remarcado",
+  "remarcada",
+  "pendente",
+];
+
+function placeholdersStatus(status: string[]) {
+  return status.map(() => "?").join(", ");
+}
+
+function condicaoConsultaProntuarioLiberada() {
+  return `(
+    LOWER(TRIM(status)) IN (${placeholdersStatus(STATUS_CONSULTA_PRONTUARIO_LIBERADO)})
+    OR (
+      LOWER(TRIM(status)) IN (${placeholdersStatus(STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL)})
+      AND NOW() BETWEEN TIMESTAMP(data_consulta, horario_inicio)
+                    AND TIMESTAMP(data_consulta, horario_fim)
+    )
+  )`;
+}
+
+function parametrosStatusConsultaProntuario() {
+  return [
+    ...STATUS_CONSULTA_PRONTUARIO_LIBERADO,
+    ...STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL,
+  ];
+}
 
 export interface SessaoProntuario {
   id: number;
@@ -153,10 +185,45 @@ export function validarPsicologo(sessao: SessaoProntuario | null) {
   return null;
 }
 
-export function validarPayloadProntuario(
-  body: ProntuarioPayload,
-  exigirConteudo: boolean,
-) {
+export function limparTextoRegistroClinico(conteudo: string) {
+  return conteudo
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function validarConteudoRegistroClinico(conteudo: string) {
+  const texto = limparTextoRegistroClinico(conteudo);
+  if (!texto) return "Descreva o registro clínico antes de continuar.";
+
+  const letras = texto.match(/\p{L}/gu) || [];
+  const numeros = texto.match(/\d/g) || [];
+  const palavras = texto.toLowerCase().match(/\p{L}{3,}/gu) || [];
+  const palavrasUnicas = new Set(palavras);
+
+  if (texto.length < 30 || letras.length < 20) {
+    return "O registro clínico deve conter uma descrição válida.";
+  }
+
+  if (/^[\d\W_]+$/u.test(texto) || numeros.length > letras.length * 0.35) {
+    return "O registro clínico deve conter uma descrição válida.";
+  }
+
+  if (
+    /(.)\1{4,}/iu.test(texto) ||
+    /[bcdfghjklmnpqrstvwxyzç]{6,}/iu.test(texto) ||
+    (palavras.length > 2 && palavrasUnicas.size / palavras.length < 0.35) ||
+    (palavras.length <= 2 && texto.length < 60)
+  ) {
+    return "Evite preencher o registro com caracteres aleatórios.";
+  }
+
+  return null;
+}
+
+export function validarPayloadProntuario(body: ProntuarioPayload) {
   const paciente_id = Number(body.paciente_id || 0);
   const consulta_id = body.consulta_id ? Number(body.consulta_id) : null;
   const data_registro = String(body.data_registro || "").trim();
@@ -172,9 +239,8 @@ export function validarPayloadProntuario(
   if (!TIPOS_ATENDIMENTO_PRONTUARIO.includes(tipo_atendimento)) {
     return { erro: "Tipo de atendimento inválido" };
   }
-  if (exigirConteudo && !conteudo) {
-    return { erro: "Conteúdo da evolução é obrigatório para finalizar" };
-  }
+  const erroConteudo = validarConteudoRegistroClinico(conteudo);
+  if (erroConteudo) return { erro: erroConteudo };
 
   return {
     dados: {
@@ -224,9 +290,14 @@ export async function validarElegibilidadePacienteProntuario(
   const [consultas] = await connection.execute<RowDataPacket[]>(
     `SELECT id FROM consultas
      WHERE id = ? AND paciente_id = ? AND clinica_id = ?
-       AND status IN (${STATUS_CONSULTA_PRONTUARIO_LIBERADO.map(() => "?").join(", ")})
+       AND ${condicaoConsultaProntuarioLiberada()}
        AND deleted_at IS NULL`,
-    [consultaId, pacienteId, clinicaId, ...STATUS_CONSULTA_PRONTUARIO_LIBERADO],
+    [
+      consultaId,
+      pacienteId,
+      clinicaId,
+      ...parametrosStatusConsultaProntuario(),
+    ],
   );
 
   return consultas.length > 0 ? null : MENSAGEM_CONSULTA_REALIZADA_OBRIGATORIA;
@@ -248,20 +319,20 @@ export async function validarConsultaDaClinica(
         pacienteId,
         psicologoId,
         clinicaId,
-        ...STATUS_CONSULTA_PRONTUARIO_LIBERADO,
+        ...parametrosStatusConsultaProntuario(),
       ]
     : [
         consultaId,
         pacienteId,
         clinicaId,
-        ...STATUS_CONSULTA_PRONTUARIO_LIBERADO,
+        ...parametrosStatusConsultaProntuario(),
       ];
 
   const [consultas] = await connection.execute<RowDataPacket[]>(
     `SELECT id FROM consultas
      WHERE id = ? AND paciente_id = ?${filtroPsicologo}
        AND clinica_id = ?
-       AND status IN (${STATUS_CONSULTA_PRONTUARIO_LIBERADO.map(() => "?").join(", ")})
+       AND ${condicaoConsultaProntuarioLiberada()}
        AND deleted_at IS NULL`,
     parametros,
   );

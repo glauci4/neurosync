@@ -9,4 +9,3 @@ export default function AcoesRelatorio({ children }: { children: ReactNode }) {
     </div>
   );
 }
-

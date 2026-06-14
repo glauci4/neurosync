@@ -14,4 +14,3 @@ export function useAtendimentosPorPsicologo(
     enabled: options.enabled ?? true,
   });
 }
-

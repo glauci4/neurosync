@@ -54,4 +54,3 @@ export async function PATCH(_request: Request, context: ParamsRoute) {
     if (connection) await connection.end();
   }
 }
-

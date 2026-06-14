@@ -123,4 +123,3 @@ export interface ResumoOperacionalClinica {
   responsavelCompleto: number;
   regrasAtivas: number;
 }
-

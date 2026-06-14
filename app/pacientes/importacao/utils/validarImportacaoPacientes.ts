@@ -111,4 +111,3 @@ export function validarLinhasImportacao(linhas: LinhaImportacaoPaciente[]) {
     };
   });
 }
-

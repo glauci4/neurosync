@@ -119,4 +119,3 @@ export async function consultarDadosEmpresaPorCnpj(cnpj: string) {
     cnpj_consultado: cnpjLimpo,
   };
 }
-

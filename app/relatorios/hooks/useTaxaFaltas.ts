@@ -14,4 +14,3 @@ export function useTaxaFaltas(
     enabled: options.enabled ?? true,
   });
 }
-

@@ -9,4 +9,3 @@ export {
   useProntuarioPorId,
   useProntuarios,
 } from "./useProntuario";
-

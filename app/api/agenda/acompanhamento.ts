@@ -171,4 +171,3 @@ export async function definirResponsavelNoAgendamento(
 
   return { aplicado: true, jaPossuiaResponsavel: false };
 }
-

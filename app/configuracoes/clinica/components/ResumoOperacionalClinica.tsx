@@ -57,4 +57,3 @@ export default function ResumoOperacionalClinica({
     </motion.section>
   );
 }
-

@@ -450,4 +450,3 @@ export async function gerarNotificacoesConsultasPendentes(
     consultas_pendentes: resultado.consultas,
   };
 }
-

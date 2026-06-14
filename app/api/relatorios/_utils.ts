@@ -245,4 +245,3 @@ export function respostaNaoAutenticado() {
 export function respostaErroInterno() {
   return Response.json({ error: "Erro interno" }, { status: 500 });
 }
-

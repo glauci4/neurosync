@@ -693,30 +693,12 @@ export default function AgendaPage() {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    const abrirNovaConsulta =
-      params.get("abrir_nova_consulta") === "1" ||
-      Boolean(sessionStorage.getItem("neurosync:nova_consulta_paciente"));
+    if (searchParams.get("abrir_nova_consulta") !== "1") return;
 
-    if (!abrirNovaConsulta) return;
-
-    const pacienteAgendarId =
-      numeroParametro(params, "paciente_agendar_id") ??
-      (() => {
-        try {
-          const backup = sessionStorage.getItem(
-            "neurosync:nova_consulta_paciente",
-          );
-          if (!backup) return undefined;
-          const parsed = JSON.parse(backup) as {
-            paciente_id?: number;
-            abrir_nova_consulta?: string;
-          };
-          return parsed.paciente_id;
-        } catch {
-          return undefined;
-        }
-      })();
+    const pacienteAgendarId = numeroParametro(
+      new URLSearchParams(searchParams.toString()),
+      "paciente_agendar_id",
+    );
 
     abrirModalConsulta({
       data_consulta: dataHojeISO(),
@@ -725,10 +707,9 @@ export default function AgendaPage() {
     fluxoIniciarAtendimentoRef.current = pacienteAgendarId ?? null;
     consultaSalvaNoFluxoRef.current = false;
 
+    const params = new URLSearchParams(searchParams.toString());
     params.delete("abrir_nova_consulta");
     params.delete("paciente_agendar_id");
-
-    sessionStorage.removeItem("neurosync:nova_consulta_paciente");
 
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, {

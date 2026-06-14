@@ -14,4 +14,3 @@ export function useConsultasStatus(
     enabled: options.enabled ?? true,
   });
 }
-

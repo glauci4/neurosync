@@ -174,4 +174,3 @@ export async function validarAcessoPacienteResponsavel(
 ) {
   return validarPacienteResponsavel(connection, pacienteId, sessao);
 }
-

@@ -56,4 +56,3 @@ export function obterConfigRelatorio(categoria: CategoriaRelatorio) {
     RELATORIOS_CATEGORIAS_CONFIG[0]
   );
 }
-

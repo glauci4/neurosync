@@ -205,4 +205,3 @@ export function validarSenhaForte(senha: string): {
 
   return { valida: true, mensagem: "Senha forte." };
 }
-

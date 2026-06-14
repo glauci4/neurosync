@@ -1,9 +1,12 @@
 "use client";
 
+import Highlight from "@tiptap/extension-highlight";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import TiptapUnderline from "@tiptap/extension-underline";
 import { motion } from "framer-motion";
 import {
+  AlertCircle,
   Bold,
   BrushCleaning,
   CalendarDays,
@@ -14,15 +17,19 @@ import {
   FileCheck,
   FilePenLine,
   FileText,
+  Highlighter,
   Italic,
   List,
   ListOrdered,
   PencilLine,
   PenLine,
+  Redo2,
   Search,
   ShieldCheck,
   Signature,
   SlidersHorizontal,
+  Underline as UnderlineIcon,
+  Undo2,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -31,12 +38,19 @@ import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MdErrorOutline } from "react-icons/md";
-import { RxGear } from "react-icons/rx";
 import { toast } from "sonner";
 import { useSidebar } from "@/app/context/SidebarContext";
 import Sidebar from "@/app/inicio/components/Sidebar";
 import { useAutenticacao } from "@/hooks/useAutenticacao";
 import { useListarPacientes } from "@/hooks/useListarPacientes";
+import { FiltrosProntuario } from "./components/FiltrosProntuario";
+import { ResumoProntuario } from "./components/ResumoProntuario";
+import {
+  ModalVisualizarRegistroClinico,
+  TimelineRegistros,
+} from "./components/TimelineRegistros";
+import { gerarRegistroClinicoPdf } from "./pdf/gerarRegistroClinicoPdf";
+import { imprimirRegistroClinico } from "./print/imprimirRegistroClinico";
 import {
   type RegistroClinico,
   type RegistroClinicoPayload,
@@ -96,17 +110,99 @@ const TIPOS_ATENDIMENTO: Array<{
   { valor: "outro", label: "Outro" },
 ];
 
-const STATUS_CONSULTA_PRONTUARIO_LIBERADO = [
+const STATUS_CONSULTA_PRONTUARIO_BLOQUEADO = [
+  "cancelado",
+  "cancelada",
+  "falta",
+  "excluido",
+  "excluida",
+];
+
+const STATUS_CONSULTA_PRONTUARIO_INICIADO = [
   "em_andamento",
+  "iniciado",
+  "iniciada",
   "concluido",
   "concluida",
   "realizado",
   "realizada",
 ];
 
-function consultaLiberaProntuario(status: string) {
-  return STATUS_CONSULTA_PRONTUARIO_LIBERADO.includes(
-    status.trim().toLowerCase(),
+const STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL = [
+  "agendado",
+  "agendada",
+  "remarcado",
+  "remarcada",
+  "pendente",
+];
+
+function consultaJaPassou(consulta: {
+  data_consulta: string;
+  horario_fim: string;
+}) {
+  const data = obterDiaISO(consulta.data_consulta);
+  const fim = new Date(`${data}T${consulta.horario_fim?.slice(0, 5)}`);
+
+  if (Number.isNaN(fim.getTime())) {
+    return false;
+  }
+
+  return new Date() > fim;
+}
+
+function consultaEstaNoHorarioAtual(consulta: {
+  data_consulta: string;
+  horario_inicio: string;
+  horario_fim: string;
+}) {
+  const data = obterDiaISO(consulta.data_consulta);
+  const inicio = new Date(`${data}T${consulta.horario_inicio?.slice(0, 5)}`);
+  const fim = new Date(`${data}T${consulta.horario_fim?.slice(0, 5)}`);
+  const agora = new Date();
+
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+    return false;
+  }
+
+  return agora >= inicio && agora <= fim;
+}
+
+function consultaSelecionavelProntuario(consulta: { status: string }) {
+  const status = consulta.status.trim().toLowerCase();
+  return !STATUS_CONSULTA_PRONTUARIO_BLOQUEADO.includes(status);
+}
+
+function consultaPermiteRegistroProntuario(consulta: {
+  status: string;
+  data_consulta: string;
+  horario_inicio: string;
+  horario_fim: string;
+}) {
+  const status = consulta.status.trim().toLowerCase();
+  if (STATUS_CONSULTA_PRONTUARIO_INICIADO.includes(status)) return true;
+  return (
+    STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status) &&
+    consultaEstaNoHorarioAtual(consulta)
+  );
+}
+
+function toastProntuarioInfo(mensagem: string) {
+  toast.custom(
+    (id) => (
+      <div className="flex w-full max-w-sm items-start gap-2 rounded-2xl border border-[#E5D9F3] bg-[#F6F0FA] px-4 py-3 text-[#2F2436] shadow-lg shadow-[#9F64AF]/10">
+        <AlertCircle size={16} className="mt-0.5 shrink-0 text-[#9F64AF]" />
+        <p className="text-sm leading-5">{mensagem}</p>
+        <button
+          type="button"
+          onClick={() => toast.dismiss(id)}
+          className="ml-auto rounded-full p-1 text-[#9F64AF] transition hover:bg-[#EDE0F5]"
+          aria-label="Fechar aviso"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    ),
+    { duration: 5000 },
   );
 }
 
@@ -257,219 +353,42 @@ function MensagemErro({ mensagem }: { mensagem?: string }) {
   );
 }
 
-function ComboboxClinico({
-  label,
-  valor,
-  opcoes,
-  placeholder,
-  erro,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  valor?: string;
-  opcoes: OpcaoFiltro[];
-  placeholder: string;
-  erro?: string;
-  disabled?: boolean;
-  onChange: (valor?: string) => void;
-}) {
-  const [aberto, setAberto] = useState(false);
-  const [busca, setBusca] = useState("");
-  const selecionada = opcoes.find((opcao) => opcao.valor === valor);
-  const filtradas = useMemo(
-    () =>
-      opcoes.filter((opcao) =>
-        `${opcao.label} ${opcao.descricao || ""}`
-          .toLowerCase()
-          .includes(busca.toLowerCase()),
-      ),
-    [busca, opcoes],
-  );
-
-  useEffect(() => {
-    if (!aberto) return;
-
-    const handleKeyDown = (evento: KeyboardEvent) => {
-      if (evento.key === "Escape") {
-        setAberto(false);
-        setBusca("");
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [aberto]);
-
-  const selecionar = (novoValor?: string) => {
-    onChange(novoValor);
-    setAberto(false);
-    setBusca("");
-  };
-
-  return (
-    <div className="relative">
-      <span className="mb-1.5 block text-xs font-semibold text-gray-600">
-        {label}
-      </span>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setAberto((atual) => !atual)}
-        className={`flex h-11 w-full items-center justify-between gap-3 rounded-xl border bg-white/90 px-3 text-left text-sm shadow-sm outline-none transition disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 ${
-          erro ? "border-red-300" : "border-gray-200 hover:border-[#9F64AF]/50"
-        }`}
-      >
-        <span
-          className={selecionada ? "truncate text-gray-700" : "text-gray-400"}
-        >
-          {selecionada?.label || placeholder}
-        </span>
-        <ChevronDown
-          size={16}
-          className={`shrink-0 text-gray-400 transition ${aberto ? "rotate-180" : ""}`}
-        />
-      </button>
-
-      {aberto && (
-        <div className="absolute top-full left-0 z-[10020] mt-2 w-full overflow-hidden rounded-2xl border border-[#9F64AF]/15 bg-white p-2 shadow-xl">
-          <div className="mb-2 flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
-            <Search size={14} className="text-gray-400" />
-            <input
-              value={busca}
-              onChange={(evento) => setBusca(evento.target.value)}
-              placeholder="Pesquisar..."
-              className="w-full bg-transparent text-sm text-gray-700 outline-none"
-            />
-          </div>
-          <div className="max-h-56 overflow-y-auto">
-            <OpcaoFiltroProntuario
-              label="Nenhuma"
-              selecionada={!valor}
-              onClick={() => selecionar(undefined)}
-            />
-            {filtradas.map((opcao) => (
-              <OpcaoFiltroProntuario
-                key={opcao.valor}
-                label={opcao.label}
-                descricao={opcao.descricao}
-                selecionada={valor === opcao.valor}
-                onClick={() => selecionar(opcao.valor)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      <MensagemErro mensagem={erro} />
-    </div>
-  );
+function limparTextoRegistroClinico(conteudo: string) {
+  return conteudo
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function ComboboxFiltroProntuario({
-  label,
-  valor,
-  opcoes,
-  placeholder,
-  onChange,
-}: {
-  label: string;
-  valor?: string;
-  opcoes: OpcaoFiltro[];
-  placeholder: string;
-  onChange: (valor?: string) => void;
-}) {
-  const [aberto, setAberto] = useState(false);
-  const [busca, setBusca] = useState("");
-  const opcoesFiltradas = useMemo(
-    () =>
-      opcoes.filter((opcao) =>
-        `${opcao.label} ${opcao.descricao || ""}`
-          .toLowerCase()
-          .includes(busca.toLowerCase()),
-      ),
-    [busca, opcoes],
-  );
-  const selecionada = opcoes.find((opcao) => opcao.valor === valor);
+function validarConteudoRegistroClinico(conteudo: string) {
+  const texto = limparTextoRegistroClinico(conteudo);
+  if (!texto) return "Descreva o registro clínico antes de continuar.";
 
-  useEffect(() => {
-    if (!aberto) return;
-    const handleKeyDown = (evento: KeyboardEvent) => {
-      if (evento.key === "Escape") {
-        setAberto(false);
-        setBusca("");
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [aberto]);
+  const letras = texto.match(/\p{L}/gu) || [];
+  const numeros = texto.match(/\d/g) || [];
+  const palavras = texto.toLowerCase().match(/\p{L}{3,}/gu) || [];
+  const palavrasUnicas = new Set(palavras);
 
-  const selecionar = (novoValor?: string) => {
-    onChange(novoValor);
-    setAberto(false);
-    setBusca("");
-  };
+  if (texto.length < 30 || letras.length < 20) {
+    return "O registro clínico deve conter uma descrição válida.";
+  }
 
-  return (
-    <div className="relative border-gray-100 border-b py-2.5 last:border-b-0">
-      <button
-        type="button"
-        onClick={() => setAberto((atual) => !atual)}
-        className="flex w-full items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-left transition hover:bg-[#F3EAF8]"
-      >
-        <span className="min-w-0">
-          <span className="block text-[11px] font-semibold text-gray-400 uppercase">
-            {label}
-          </span>
-          <span
-            className={`mt-0.5 block truncate text-sm ${
-              selecionada ? "font-medium text-gray-700" : "text-gray-400"
-            }`}
-          >
-            {selecionada?.label || placeholder}
-          </span>
-        </span>
-        <ChevronDown
-          size={16}
-          className={`shrink-0 text-gray-400 transition ${
-            aberto ? "rotate-180" : ""
-          }`}
-        />
-      </button>
+  if (/^[\d\W_]+$/u.test(texto) || numeros.length > letras.length * 0.35) {
+    return "O registro clínico deve conter uma descrição válida.";
+  }
 
-      {aberto && (
-        <div className="mt-2 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
-          <div className="mb-2 flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
-            <Search size={14} className="text-gray-400" />
-            <input
-              value={busca}
-              onChange={(evento) => setBusca(evento.target.value)}
-              placeholder="Pesquisar..."
-              className="w-full bg-transparent text-sm text-gray-700 outline-none"
-            />
-          </div>
+  if (
+    /(.)\1{4,}/iu.test(texto) ||
+    /[bcdfghjklmnpqrstvwxyzç]{6,}/iu.test(texto) ||
+    (palavras.length > 2 && palavrasUnicas.size / palavras.length < 0.35) ||
+    (palavras.length <= 2 && texto.length < 60)
+  ) {
+    return "Evite preencher o registro com caracteres aleatórios.";
+  }
 
-          <div className="max-h-48 overflow-y-auto">
-            <OpcaoFiltroProntuario
-              label="Todos"
-              selecionada={!valor}
-              onClick={() => selecionar(undefined)}
-            />
-            {opcoesFiltradas.map((opcao) => (
-              <OpcaoFiltroProntuario
-                key={opcao.valor}
-                label={opcao.label}
-                descricao={opcao.descricao}
-                selecionada={valor === opcao.valor}
-                onClick={() => selecionar(opcao.valor)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return undefined;
 }
 
 function OpcaoFiltroProntuario({
@@ -510,233 +429,169 @@ function OpcaoFiltroProntuario({
   );
 }
 
-function FiltrosProntuario({
-  filtros,
-  pacientes,
-  psicologos,
+function ComboboxClinico({
+  label,
+  valor,
+  opcoes,
+  placeholder,
+  erro,
+  disabled,
   onChange,
 }: {
-  filtros: EstadoFiltrosProntuario;
-  pacientes: OpcaoFiltro[];
-  psicologos: OpcaoFiltro[];
-  onChange: (filtros: EstadoFiltrosProntuario) => void;
+  label: string;
+  valor?: string;
+  opcoes: OpcaoFiltro[];
+  placeholder: string;
+  erro?: string;
+  disabled?: boolean;
+  onChange: (valor?: string) => void;
 }) {
   const [aberto, setAberto] = useState(false);
-  const [posicao, setPosicao] = useState({
-    top: 0,
-    left: 0,
-    width: 380,
-    maxHeight: 520,
-    arrowLeft: 330,
-  });
+  const [busca, setBusca] = useState("");
   const botaoRef = useRef<HTMLButtonElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
-  const filtrosAtivos = Object.values(filtros).filter(Boolean).length;
-
-  const atualizarPosicao = useCallback(() => {
-    if (!botaoRef.current) return;
-
-    const rect = botaoRef.current.getBoundingClientRect();
-    const margem = 16;
-    const espacamento = 12;
-    const largura = Math.min(380, window.innerWidth - margem * 2);
-    const top = rect.bottom + espacamento;
-    const left = Math.min(
-      Math.max(margem, rect.right - largura),
-      window.innerWidth - largura - margem,
-    );
-    const alturaDisponivel = Math.max(140, window.innerHeight - top - margem);
-    const maxHeight = Math.min(
-      Math.floor(window.innerHeight * 0.7),
-      alturaDisponivel,
-    );
-
-    setPosicao({
-      top,
-      left,
-      width: largura,
-      maxHeight,
-      arrowLeft: Math.min(
-        Math.max(18, rect.left + rect.width / 2 - left - 8),
-        largura - 34,
+  const [posicaoLista, setPosicaoLista] = useState({
+    abrirParaCima: false,
+    maxHeight: 224,
+  });
+  const selecionada = opcoes.find((opcao) => opcao.valor === valor);
+  const filtradas = useMemo(
+    () =>
+      opcoes.filter((opcao) =>
+        `${opcao.label} ${opcao.descricao || ""}`
+          .toLowerCase()
+          .includes(busca.toLowerCase()),
       ),
-    });
-  }, []);
+    [busca, opcoes],
+  );
 
   useEffect(() => {
     if (!aberto) return;
-    atualizarPosicao();
+
+    const atualizarPosicao = () => {
+      const botao = botaoRef.current;
+      if (!botao) return;
+
+      const rect = botao.getBoundingClientRect();
+      const modal = botao.closest("[data-prontuario-modal]");
+      const modalRect = modal?.getBoundingClientRect();
+      const limiteSuperior = modalRect?.top ?? 0;
+      const limiteInferior = modalRect?.bottom ?? window.innerHeight;
+      const espacoAbaixo = Math.max(0, limiteInferior - rect.bottom - 12);
+      const espacoAcima = Math.max(0, rect.top - limiteSuperior - 12);
+      const abrirParaCima = espacoAbaixo < 180 && espacoAcima > espacoAbaixo;
+      const espacoDisponivel = abrirParaCima ? espacoAcima : espacoAbaixo;
+
+      setPosicaoLista({
+        abrirParaCima,
+        maxHeight: Math.max(120, Math.min(224, espacoDisponivel - 60)),
+      });
+    };
 
     const handleKeyDown = (evento: KeyboardEvent) => {
-      if (evento.key === "Escape") setAberto(false);
-    };
-    const handleClickOutside = (evento: MouseEvent) => {
-      const alvo = evento.target as Node;
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(alvo) &&
-        botaoRef.current &&
-        !botaoRef.current.contains(alvo)
-      ) {
+      if (evento.key === "Escape") {
         setAberto(false);
+        setBusca("");
       }
     };
-    const handleViewportChange = () => atualizarPosicao();
 
+    atualizarPosicao();
     document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("mousedown", handleClickOutside);
-    window.addEventListener("resize", handleViewportChange);
-    window.addEventListener("scroll", handleViewportChange, true);
+    window.addEventListener("resize", atualizarPosicao);
+    window.addEventListener("scroll", atualizarPosicao, true);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("resize", handleViewportChange);
-      window.removeEventListener("scroll", handleViewportChange, true);
+      window.removeEventListener("resize", atualizarPosicao);
+      window.removeEventListener("scroll", atualizarPosicao, true);
     };
-  }, [aberto, atualizarPosicao]);
+  }, [aberto]);
+
+  const selecionar = (novoValor?: string) => {
+    onChange(novoValor);
+    setAberto(false);
+    setBusca("");
+  };
 
   return (
     <div className="relative">
+      <span className="mb-1.5 block text-xs font-semibold text-gray-600">
+        {label}
+      </span>
       <button
         ref={botaoRef}
         type="button"
-        onClick={() => {
-          setAberto((atual) => {
-            const proximo = !atual;
-            if (proximo) requestAnimationFrame(atualizarPosicao);
-            return proximo;
-          });
-        }}
-        className="relative rounded-xl border border-gray-300 bg-white/85 p-2.5 text-gray-600 shadow-sm transition hover:bg-gray-50 hover:text-[#9F64AF]"
-        title="Filtrar prontuário"
-        aria-label="Filtrar prontuário"
-        aria-expanded={aberto}
+        disabled={disabled}
+        onClick={() => setAberto((atual) => !atual)}
+        className={`flex h-11 w-full items-center justify-between gap-3 rounded-xl border bg-white/90 px-3 text-left text-sm shadow-sm outline-none transition disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 ${
+          erro ? "border-red-300" : "border-gray-200 hover:border-[#9F64AF]/50"
+        }`}
       >
-        <SlidersHorizontal size={18} />
-        {filtrosAtivos > 0 && (
-          <span className="-top-1 -right-1 absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-[#9F64AF] px-1 text-[10px] font-bold text-white">
-            {filtrosAtivos}
-          </span>
-        )}
+        <span
+          className={selecionada ? "truncate text-gray-700" : "text-gray-400"}
+        >
+          {selecionada?.label || placeholder}
+        </span>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-gray-400 transition ${aberto ? "rotate-180" : ""}`}
+        />
       </button>
 
-      {aberto
-        ? createPortal(
-            <div
-              ref={popoverRef}
-              className="fixed z-[10000] flex flex-col overflow-visible rounded-2xl border border-[#9F64AF]/15 bg-white/95 p-3 shadow-2xl backdrop-blur-sm"
-              style={{
-                top: posicao.top,
-                left: posicao.left,
-                width: posicao.width,
-                maxHeight: posicao.maxHeight,
-              }}
-              role="dialog"
-              aria-label="Filtros do prontuário"
-            >
-              <span
-                className="-top-2 absolute h-4 w-4 rotate-45 border-t border-l border-[#9F64AF]/15 bg-white/95 backdrop-blur-sm"
-                style={{ left: posicao.arrowLeft }}
+      {aberto && (
+        <div
+          className={`absolute left-0 z-[10020] w-full overflow-hidden rounded-2xl border border-[#9F64AF]/15 bg-white p-2 shadow-xl ${
+            posicaoLista.abrirParaCima ? "bottom-full mb-2" : "top-full mt-2"
+          }`}
+        >
+          <div className="mb-2 flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
+            <Search size={14} className="text-gray-400" />
+            <input
+              value={busca}
+              onChange={(evento) => setBusca(evento.target.value)}
+              placeholder="Pesquisar..."
+              className="w-full bg-transparent text-sm text-gray-700 outline-none"
+            />
+          </div>
+          <div
+            className="agenda-filtro-scroll overflow-y-auto pr-1"
+            style={{ maxHeight: posicaoLista.maxHeight }}
+          >
+            <OpcaoFiltroProntuario
+              label="Nenhuma"
+              selecionada={!valor}
+              onClick={() => selecionar(undefined)}
+            />
+            {filtradas.map((opcao) => (
+              <OpcaoFiltroProntuario
+                key={opcao.valor}
+                label={opcao.label}
+                descricao={opcao.descricao}
+                selecionada={valor === opcao.valor}
+                onClick={() => selecionar(opcao.valor)}
               />
-              <div className="shrink-0 border-[#F3EAF8] border-b px-1 pb-3">
-                <h3 className="text-sm font-semibold text-gray-800">
-                  Filtrar prontuário
-                </h3>
-                <p className="mt-1 text-xs text-gray-500">
-                  Refine o histórico clínico exibido na timeline.
-                </p>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto py-1 pr-1">
-                <ComboboxFiltroProntuario
-                  label="Paciente"
-                  valor={
-                    filtros.paciente_id
-                      ? String(filtros.paciente_id)
-                      : undefined
-                  }
-                  opcoes={pacientes}
-                  placeholder="Todos"
-                  onChange={(valor) =>
-                    onChange({
-                      ...filtros,
-                      paciente_id: valor ? Number(valor) : undefined,
-                    })
-                  }
-                />
-                <ComboboxFiltroProntuario
-                  label="Psicólogo"
-                  valor={
-                    filtros.psicologo_id
-                      ? String(filtros.psicologo_id)
-                      : undefined
-                  }
-                  opcoes={psicologos}
-                  placeholder="Todos"
-                  onChange={(valor) =>
-                    onChange({
-                      ...filtros,
-                      psicologo_id: valor ? Number(valor) : undefined,
-                    })
-                  }
-                />
-                <ComboboxFiltroProntuario
-                  label="Status do paciente"
-                  valor={filtros.status_paciente}
-                  opcoes={STATUS_PACIENTE_OPCOES}
-                  placeholder="Todos"
-                  onChange={(valor) =>
-                    onChange({
-                      ...filtros,
-                      status_paciente: valor as "ativo" | "inativo" | undefined,
-                    })
-                  }
-                />
-                <ComboboxFiltroProntuario
-                  label="Status"
-                  valor={filtros.status}
-                  opcoes={STATUS_OPCOES}
-                  placeholder="Todos"
-                  onChange={(valor) => onChange({ ...filtros, status: valor })}
-                />
-                <ComboboxFiltroProntuario
-                  label="Período"
-                  valor={filtros.periodo}
-                  opcoes={PERIODO_OPCOES}
-                  placeholder="Todos"
-                  onChange={(valor) => onChange({ ...filtros, periodo: valor })}
-                />
-                <ComboboxFiltroProntuario
-                  label="Tipo de atendimento"
-                  valor={filtros.tipo_atendimento}
-                  opcoes={TIPOS_ATENDIMENTO.map((tipo) => ({
-                    valor: tipo.valor,
-                    label: tipo.label,
-                  }))}
-                  placeholder="Todos"
-                  onChange={(valor) =>
-                    onChange({ ...filtros, tipo_atendimento: valor })
-                  }
-                />
-              </div>
-
-              <div className="flex shrink-0 items-center justify-between border-[#F3EAF8] border-t bg-white/95 px-1 pt-3">
-                <span className="text-xs text-gray-400">
-                  {filtrosAtivos} {filtrosAtivos === 1 ? "filtro" : "filtros"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onChange({})}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-gray-500 transition hover:bg-[#F3EAF8] hover:text-[#9F64AF]"
-                >
-                  <BrushCleaning size={13} />
-                  Limpar filtros
-                </button>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            ))}
+          </div>
+        </div>
+      )}
+      <style jsx global>{`
+        .agenda-filtro-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(159, 100, 175, 0.45) transparent;
+        }
+        .agenda-filtro-scroll::-webkit-scrollbar {
+          width: 7px;
+        }
+        .agenda-filtro-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .agenda-filtro-scroll::-webkit-scrollbar-thumb {
+          background: rgba(159, 100, 175, 0.35);
+          border-radius: 999px;
+        }
+        .agenda-filtro-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(159, 100, 175, 0.55);
+        }
+      `}</style>
+      <MensagemErro mensagem={erro} />
     </div>
   );
 }
@@ -760,11 +615,12 @@ function ModalEvolucao({
   const [formulario, setFormulario] = useState({
     paciente_id: "",
     consulta_id: "",
-    data_registro: dataHojeISO(),
+    data_registro: "",
     tipo_atendimento: "" as TipoAtendimentoProntuario | "",
     conteudo: "",
   });
   const [erros, setErros] = useState<ErrosEvolucao>({});
+  const [versaoToolbar, setVersaoToolbar] = useState(0);
   const criarEvolucao = useCriarEvolucao();
   const atualizarEvolucao = useAtualizarEvolucao();
   const pacienteIdSelecionado = Number(formulario.paciente_id || 0);
@@ -773,19 +629,24 @@ function ModalEvolucao({
   const salvando = criarEvolucao.isPending || atualizarEvolucao.isPending;
   const editando = Boolean(evolucao?.id);
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit,
+      TiptapUnderline,
+      Highlight.configure({ multicolor: true }),
+    ],
     content: formulario.conteudo || "",
     immediatelyRender: false,
     editorProps: {
       attributes: {
         class:
-          "min-h-[360px] px-4 py-4 text-sm leading-7 text-gray-700 outline-none prose prose-sm max-w-none",
+          "min-h-[520px] px-4 py-4 text-sm leading-7 text-gray-700 outline-none prose prose-sm max-w-none",
       },
     },
     onUpdate: ({ editor }) => {
       atualizarCampo("conteudo", editor.getHTML());
     },
   });
+  void versaoToolbar;
 
   useEffect(() => setMontado(true), []);
 
@@ -797,7 +658,7 @@ function ModalEvolucao({
     setFormulario({
       paciente_id: evolucao?.paciente_id ? String(evolucao.paciente_id) : "",
       consulta_id: evolucao?.consulta_id ? String(evolucao.consulta_id) : "",
-      data_registro: evolucao?.data_registro?.slice(0, 10) || dataHojeISO(),
+      data_registro: evolucao?.data_registro?.slice(0, 10) || "",
       tipo_atendimento: evolucao?.tipo_atendimento || "",
       conteudo: evolucao?.conteudo || "",
     });
@@ -807,6 +668,18 @@ function ModalEvolucao({
     if (!aberto || !editor) return;
     editor.commands.setContent(evolucao?.conteudo || "");
   }, [aberto, editor, evolucao?.conteudo]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const atualizarToolbar = () => setVersaoToolbar((atual) => atual + 1);
+
+    editor.on("selectionUpdate", atualizarToolbar);
+    editor.on("transaction", atualizarToolbar);
+    return () => {
+      editor.off("selectionUpdate", atualizarToolbar);
+      editor.off("transaction", atualizarToolbar);
+    };
+  }, [editor]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -820,7 +693,7 @@ function ModalEvolucao({
   const consultas = useMemo(
     () =>
       (consultasData?.data || [])
-        .filter((consulta) => consultaLiberaProntuario(consulta.status))
+        .filter((consulta) => consultaSelecionavelProntuario(consulta))
         .sort((a, b) =>
           `${b.data_consulta}T${b.horario_inicio}`.localeCompare(
             `${a.data_consulta}T${a.horario_inicio}`,
@@ -831,9 +704,10 @@ function ModalEvolucao({
   const pacienteSelecionado = pacientes.find(
     (paciente) => paciente.id === pacienteIdSelecionado,
   );
+  const consultaSelecionada = consultas.find(
+    (consulta) => String(consulta.id) === formulario.consulta_id,
+  );
   const ultimaConsulta = consultas[0];
-  const textoEditor = editor?.getText().trim() || "";
-
   const atualizarCampo = (campo: keyof typeof formulario, valor: string) => {
     setFormulario((atual) => ({ ...atual, [campo]: valor }));
     setErros((atuais) => ({ ...atuais, [campo]: undefined, geral: undefined }));
@@ -844,6 +718,8 @@ function ModalEvolucao({
       ...atual,
       paciente_id: valor || "",
       consulta_id: "",
+      data_registro: "",
+      tipo_atendimento: "",
     }));
     setErros((atuais) => ({
       ...atuais,
@@ -855,11 +731,22 @@ function ModalEvolucao({
 
   const selecionarConsulta = (valor?: string) => {
     const consulta = consultas.find((item) => String(item.id) === valor);
+    if (consulta) {
+      const status = consulta.status.trim().toLowerCase();
+      if (
+        STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status) &&
+        consultaJaPassou(consulta)
+      ) {
+        toastProntuarioInfo(
+          "O horário desta consulta já passou. Marque a consulta como concluída para registrar o prontuário.",
+        );
+      }
+    }
     setFormulario((atual) => ({
       ...atual,
       consulta_id: valor || "",
-      data_registro: consulta?.data_consulta || atual.data_registro,
-      tipo_atendimento: consulta?.tipo_atendimento || atual.tipo_atendimento,
+      data_registro: consulta?.data_consulta || "",
+      tipo_atendimento: consulta?.tipo_atendimento || "",
     }));
     setErros((atuais) => ({
       ...atuais,
@@ -870,7 +757,15 @@ function ModalEvolucao({
     }));
   };
 
-  const validar = (finalizar: boolean) => {
+  const validar = (
+    finalizar: boolean,
+    opcoes: {
+      validarConteudo?: boolean;
+      validarPermissaoConsulta?: boolean;
+    } = {},
+  ) => {
+    const validarConteudo = opcoes.validarConteudo ?? true;
+    const validarPermissaoConsulta = opcoes.validarPermissaoConsulta ?? true;
     const novosErros: ErrosEvolucao = {};
     if (!formulario.paciente_id) {
       novosErros.paciente_id = "Paciente é obrigatório";
@@ -878,8 +773,13 @@ function ModalEvolucao({
     if (!formulario.data_registro) {
       novosErros.data_registro = "Data é obrigatória";
     }
-    if (!formulario.tipo_atendimento) {
-      novosErros.tipo_atendimento = "Tipo de atendimento é obrigatório";
+    if (!formulario.consulta_id) {
+      novosErros.consulta_id =
+        "Selecione uma consulta vinculada para criar o registro clínico.";
+    }
+    if (formulario.consulta_id && !formulario.tipo_atendimento) {
+      novosErros.tipo_atendimento =
+        "Tipo de atendimento não encontrado na consulta vinculada.";
     }
     if (
       formulario.consulta_id &&
@@ -889,28 +789,71 @@ function ModalEvolucao({
     ) {
       novosErros.consulta_id = "Consulta vinculada inválida";
     }
-    if (finalizar && !textoEditor) {
-      novosErros.conteudo =
-        "Conteúdo do registro clínico é obrigatório para finalizar";
+    if (validarConteudo) {
+      const erroConteudo = validarConteudoRegistroClinico(
+        editor?.getText() || formulario.conteudo,
+      );
+      if (erroConteudo) {
+        novosErros.conteudo = erroConteudo;
+      }
     }
-    const consultaLiberadaSelecionada = consultas.some(
-      (consulta) =>
-        String(consulta.id) === formulario.consulta_id &&
-        consultaLiberaProntuario(consulta.status),
-    );
+    const consultaVinculavelSelecionada = Boolean(consultaSelecionada);
     if (pacienteSelecionado?.ativo === false) {
       novosErros.paciente_id = "Paciente não encontrado ou inativo";
     }
-    if (pacienteSelecionado && !consultaLiberadaSelecionada) {
+    if (pacienteSelecionado && !consultaVinculavelSelecionada) {
       novosErros.consulta_id =
-        "Só é possível criar um registro clínico a partir de uma consulta iniciada.";
+        "Selecione uma consulta vinculada válida para criar o registro clínico.";
       if (!formulario.consulta_id) {
         novosErros.consulta_id =
-          "Só é possível criar um registro clínico a partir de uma consulta iniciada.";
+          "Selecione uma consulta vinculada para criar o registro clínico.";
       }
+    }
+    if (
+      validarPermissaoConsulta &&
+      consultaSelecionada &&
+      !consultaPermiteRegistroProntuario(consultaSelecionada)
+    ) {
+      novosErros.consulta_id =
+        "Marque a consulta como concluída para registrar o prontuário.";
     }
     setErros(novosErros);
     return Object.keys(novosErros).length === 0;
+  };
+
+  const continuarParaRegistro = () => {
+    const formularioValido = validar(false, {
+      validarConteudo: false,
+      validarPermissaoConsulta: false,
+    });
+    if (!formularioValido) return;
+
+    if (
+      consultaSelecionada &&
+      !consultaPermiteRegistroProntuario(consultaSelecionada)
+    ) {
+      const status = consultaSelecionada.status.trim().toLowerCase();
+      if (
+        STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status) &&
+        consultaJaPassou(consultaSelecionada)
+      ) {
+        toastProntuarioInfo(
+          "O horário desta consulta já passou. Marque a consulta como concluída para registrar o prontuário.",
+        );
+        return;
+      }
+
+      if (STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status)) {
+        toastProntuarioInfo("Este atendimento ainda não foi iniciado.");
+      } else {
+        toastProntuarioInfo(
+          "Marque a consulta como concluída para registrar o prontuário.",
+        );
+      }
+      return;
+    }
+
+    setRegistroAberto(true);
   };
 
   const salvar = async (finalizar: boolean) => {
@@ -973,10 +916,11 @@ function ModalEvolucao({
       5,
     )} · ${consulta.psicologo_nome} · ${consulta.status}`,
   }));
-  const opcoesTipos = TIPOS_ATENDIMENTO.map((tipo) => ({
-    valor: tipo.valor,
-    label: tipo.label,
-  }));
+  const tipoAtendimentoSelecionado = formulario.tipo_atendimento
+    ? tipoAtendimentoLabel(
+        formulario.tipo_atendimento as TipoAtendimentoProntuario,
+      )
+    : "";
 
   if (!aberto || !montado) return null;
 
@@ -992,7 +936,8 @@ function ModalEvolucao({
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 18 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-[#9F64AF]/15 bg-white p-6 shadow-2xl sm:p-8"
+        data-prontuario-modal
+        className="relative max-h-[90vh] w-full max-w-[720px] overflow-y-auto rounded-2xl border border-[#9F64AF]/15 bg-white p-6 shadow-2xl sm:p-8"
       >
         <button
           type="button"
@@ -1022,7 +967,7 @@ function ModalEvolucao({
           noValidate
           onSubmit={(evento: FormEvent<HTMLFormElement>) => {
             evento.preventDefault();
-            if (validar(false)) setRegistroAberto(true);
+            continuarParaRegistro();
           }}
           className="space-y-5"
         >
@@ -1071,9 +1016,11 @@ function ModalEvolucao({
                     </p>
                   </div>
                   <div className="grid gap-2 text-xs text-gray-500 sm:grid-cols-2 md:text-right">
-                    <span>
-                      Última consulta:{" "}
-                      <strong className="text-gray-700">
+                    <div>
+                      <span className="block font-medium text-gray-500">
+                        Última consulta
+                      </span>
+                      <strong className="mt-0.5 block whitespace-nowrap text-gray-700">
                         {ultimaConsulta
                           ? `${formatarData(ultimaConsulta.data_consulta)} · ${ultimaConsulta.horario_inicio?.slice(
                               0,
@@ -1081,13 +1028,15 @@ function ModalEvolucao({
                             )}`
                           : "Nenhuma"}
                       </strong>
-                    </span>
-                    <span>
-                      Evoluções:{" "}
-                      <strong className="text-gray-700">
+                    </div>
+                    <div>
+                      <span className="block font-medium text-gray-500">
+                        Evoluções
+                      </span>
+                      <strong className="mt-0.5 block text-gray-700">
                         {quantidadeEvolucoesPaciente}
                       </strong>
-                    </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1104,28 +1053,40 @@ function ModalEvolucao({
               </label>
               <input
                 id="prontuario-data"
-                type="date"
-                value={formulario.data_registro}
-                onChange={(evento) =>
-                  atualizarCampo("data_registro", evento.target.value)
+                type="text"
+                readOnly
+                value={
+                  formulario.data_registro
+                    ? formatarData(formulario.data_registro)
+                    : ""
                 }
-                className={`h-11 w-full rounded-xl border bg-white/90 px-3 text-sm text-gray-700 shadow-sm outline-none transition focus:border-[#9F64AF]/70 ${
+                placeholder="Selecione uma consulta vinculada"
+                className={`h-11 w-full cursor-not-allowed rounded-xl border bg-gray-50 px-3 text-sm text-gray-500 shadow-sm outline-none ${
                   erros.data_registro ? "border-red-300" : "border-gray-200"
                 }`}
               />
               <MensagemErro mensagem={erros.data_registro} />
             </div>
 
-            <ComboboxClinico
-              label="Tipo de atendimento *"
-              valor={formulario.tipo_atendimento}
-              opcoes={opcoesTipos}
-              placeholder="Selecionar tipo"
-              erro={erros.tipo_atendimento}
-              onChange={(valor) =>
-                atualizarCampo("tipo_atendimento", valor || "")
-              }
-            />
+            <div>
+              <label
+                htmlFor="prontuario-tipo-atendimento"
+                className="mb-1.5 block text-xs font-semibold text-gray-600"
+              >
+                Tipo de atendimento
+              </label>
+              <input
+                id="prontuario-tipo-atendimento"
+                type="text"
+                readOnly
+                value={tipoAtendimentoSelecionado}
+                placeholder="Selecione uma consulta vinculada"
+                className={`h-11 w-full cursor-not-allowed rounded-xl border bg-gray-50 px-3 text-sm text-gray-500 shadow-sm outline-none ${
+                  erros.tipo_atendimento ? "border-red-300" : "border-gray-200"
+                }`}
+              />
+              <MensagemErro mensagem={erros.tipo_atendimento} />
+            </div>
           </div>
 
           <MensagemErro mensagem={erros.geral} />
@@ -1153,7 +1114,7 @@ function ModalEvolucao({
             <motion.div
               initial={{ opacity: 0, scale: 0.97, y: 18 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#9F64AF]/15 bg-white shadow-2xl"
+              className="flex h-[92vh] w-full max-w-[960px] flex-col overflow-hidden rounded-2xl border border-[#9F64AF]/15 bg-white shadow-2xl"
             >
               <div className="shrink-0 border-[#F3EAF8] border-b bg-white/95 px-6 py-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1197,22 +1158,37 @@ function ModalEvolucao({
                             )?.label
                           : "Sem consulta vinculada"}
                       </p>
-                      <p className="mt-1">
-                        {formatarData(formulario.data_registro)} ·{" "}
-                        {tipoAtendimentoLabel(
-                          formulario.tipo_atendimento as TipoAtendimentoProntuario,
-                        )}
-                      </p>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto bg-[#FCFAFD] p-6">
-                <div className="overflow-hidden rounded-2xl border border-[#9F64AF]/15 bg-white shadow-sm">
-                  <div className="flex flex-wrap items-center gap-2 border-[#F3EAF8] border-b bg-white/95 px-4 py-3">
+              <div className="flex min-h-0 flex-1 flex-col bg-[#FCFAFD] p-6">
+                <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-[#9F64AF]/15 bg-white shadow-sm">
+                  <div className="z-10 flex shrink-0 flex-wrap items-center gap-2 border-[#F3EAF8] border-b bg-white px-4 py-3">
                     <button
                       type="button"
+                      disabled={!editor?.can().undo()}
+                      onMouseDown={(evento) => evento.preventDefault()}
+                      onClick={() => editor?.chain().focus().undo().run()}
+                      className="rounded-lg p-2 text-gray-500 transition hover:bg-[#F3EAF8] hover:text-[#9F64AF] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-500"
+                      title="Desfazer"
+                    >
+                      <Undo2 size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!editor?.can().redo()}
+                      onMouseDown={(evento) => evento.preventDefault()}
+                      onClick={() => editor?.chain().focus().redo().run()}
+                      className="rounded-lg p-2 text-gray-500 transition hover:bg-[#F3EAF8] hover:text-[#9F64AF] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-500"
+                      title="Refazer"
+                    >
+                      <Redo2 size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(evento) => evento.preventDefault()}
                       onClick={() => editor?.chain().focus().toggleBold().run()}
                       className={`rounded-lg p-2 transition ${
                         editor?.isActive("bold")
@@ -1225,6 +1201,7 @@ function ModalEvolucao({
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(evento) => evento.preventDefault()}
                       onClick={() =>
                         editor?.chain().focus().toggleItalic().run()
                       }
@@ -1239,6 +1216,22 @@ function ModalEvolucao({
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(evento) => evento.preventDefault()}
+                      onClick={() =>
+                        editor?.chain().focus().toggleUnderline().run()
+                      }
+                      className={`rounded-lg p-2 transition ${
+                        editor?.isActive("underline")
+                          ? "bg-[#F3EAF8] text-[#9F64AF]"
+                          : "text-gray-500 hover:bg-[#F3EAF8] hover:text-[#9F64AF]"
+                      }`}
+                      title="Sublinhado"
+                    >
+                      <UnderlineIcon size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(evento) => evento.preventDefault()}
                       onClick={() =>
                         editor?.chain().focus().toggleBulletList().run()
                       }
@@ -1253,6 +1246,7 @@ function ModalEvolucao({
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(evento) => evento.preventDefault()}
                       onClick={() =>
                         editor?.chain().focus().toggleOrderedList().run()
                       }
@@ -1267,6 +1261,26 @@ function ModalEvolucao({
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(evento) => evento.preventDefault()}
+                      onClick={() =>
+                        editor
+                          ?.chain()
+                          .focus()
+                          .toggleHighlight({ color: "#FFF3B0" })
+                          .run()
+                      }
+                      className={`rounded-lg p-2 transition ${
+                        editor?.isActive("highlight")
+                          ? "bg-[#F3EAF8] text-[#9F64AF]"
+                          : "text-gray-500 hover:bg-[#F3EAF8] hover:text-[#9F64AF]"
+                      }`}
+                      title="Destacar texto"
+                    >
+                      <Highlighter size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(evento) => evento.preventDefault()}
                       onClick={() =>
                         editor
                           ?.chain()
@@ -1285,10 +1299,12 @@ function ModalEvolucao({
                     </span>
                   </div>
 
-                  <EditorContent
-                    editor={editor}
-                    className="min-h-[420px] [&_.ProseMirror]:min-h-[420px] [&_.ProseMirror]:px-5 [&_.ProseMirror]:py-5 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_p]:mb-3"
-                  />
+                  <div className="agenda-filtro-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                    <EditorContent
+                      editor={editor}
+                      className="min-h-full [&_.ProseMirror]:min-h-[520px] [&_.ProseMirror]:px-5 [&_.ProseMirror]:py-5 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_p]:mb-3"
+                    />
+                  </div>
                 </div>
                 <MensagemErro mensagem={erros.conteudo} />
                 <MensagemErro mensagem={erros.geral} />
@@ -1363,329 +1379,6 @@ function ModalEvolucao({
   );
 }
 
-function ConteudoEvolucao({ conteudo }: { conteudo: string }) {
-  const editorLeitura = useEditor({
-    extensions: [StarterKit],
-    content: conteudo,
-    editable: false,
-    immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class:
-          "text-sm leading-6 text-gray-700 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-6",
-      },
-    },
-  });
-
-  return <EditorContent editor={editorLeitura} />;
-}
-
-function CardEvolucao({
-  evolucao,
-  onEditar,
-  onFinalizar,
-  onAssinar,
-}: {
-  evolucao: RegistroClinico;
-  onEditar: (evolucao: RegistroClinico) => void;
-  onFinalizar: (evolucao: RegistroClinico) => void;
-  onAssinar: (evolucao: RegistroClinico) => void;
-}) {
-  const [expandido, setExpandido] = useState(false);
-  const status = STATUS_CONFIG[evolucao.status];
-  const StatusIcone = status.icone;
-  const horaRegistro =
-    formatarHoraClinica(evolucao.finalizado_em) ||
-    formatarHoraClinica(evolucao.criado_em);
-  const podeEditar = evolucao.status === "rascunho";
-  const consultaVinculada = Number(evolucao.consulta_id) > 0;
-
-  return (
-    <article className="overflow-hidden rounded-2xl border border-[#9F64AF]/15 bg-white/90 shadow-sm backdrop-blur-sm">
-      {/* Cabeçalho documental com status clínico e ações permitidas pelo backend. */}
-      <div className="border-[#F3EAF8] border-b bg-white/80 px-4 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${status.classe}`}
-              >
-                <StatusIcone size={13} />
-                {status.label}
-              </span>
-              {consultaVinculada && (
-                <span className="rounded-full border border-[#D9BCE8] bg-[#F9F4FB] px-2.5 py-0.5 text-[11px] font-semibold text-[#7A4B86]">
-                  Consulta vinculada
-                </span>
-              )}
-            </div>
-            <h3 className="mt-2 truncate text-base font-semibold text-gray-800">
-              {evolucao.paciente_nome}
-            </h3>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500">
-              <span className="inline-flex items-center gap-1">
-                <CalendarDays size={13} className="text-[#9F64AF]" />
-                {formatarDataClinica(evolucao.data_registro)}
-                {horaRegistro ? ` · ${horaRegistro}` : ""}
-              </span>
-              <span>{tipoAtendimentoLabel(evolucao.tipo_atendimento)}</span>
-              <span>
-                {evolucao.psicologo_nome}
-                {evolucao.crp ? ` · CRP ${evolucao.crp}` : ""}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setExpandido((atual) => !atual)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#9F64AF]/20 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#9F64AF] transition hover:bg-[#F3EAF8]"
-            >
-              <FileText size={13} />
-              {expandido ? "Recolher registro" : "Ver registro"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {expandido && (
-        <div className="space-y-2.5 p-3.5">
-          <div className="rounded-2xl border border-gray-100 bg-[#FCFAFD] p-3.5">
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold uppercase text-gray-500">
-                Registro clínico
-              </span>
-              <span className="text-[11px] text-gray-400">
-                Atualizado em {formatarDataHora(evolucao.atualizado_em)}
-              </span>
-            </div>
-            {evolucao.conteudo ? (
-              <ConteudoEvolucao conteudo={evolucao.conteudo} />
-            ) : (
-              <p className="text-sm leading-6 text-gray-500">
-                Rascunho sem conteúdo registrado.
-              </p>
-            )}
-          </div>
-
-          {evolucao.editado_em && evolucao.editado_por_nome && (
-            <div className="flex flex-col gap-2 rounded-2xl border border-gray-100 bg-white/80 p-3.5 text-[11px] text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-              {/* Registro discreto da última edição; o histórico completo fica preservado no banco. */}
-              <p className="leading-[1.15]">
-                Editado por{" "}
-                <span className="font-semibold text-gray-700">
-                  {evolucao.editado_por_nome}
-                </span>
-                {evolucao.crp_editor ? ` — CRP ${evolucao.crp_editor}` : ""} em{" "}
-                {formatarDataHoraEdicao(evolucao.editado_em)}
-              </p>
-              {evolucao.assinatura_editor_url && (
-                <div className="shrink-0 rounded-lg border border-gray-100 bg-white p-2">
-                  <Image
-                    src={evolucao.assinatura_editor_url}
-                    alt="Assinatura do psicólogo editor"
-                    width={150}
-                    height={48}
-                    className="max-h-10 max-w-[130px] object-contain"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {evolucao.status === "assinado" && (
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5">
-              {/* A assinatura exibida é a cópia histórica gravada no momento da assinatura. */}
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="min-w-0">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/75 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
-                    <Signature size={13} />
-                    Assinado digitalmente
-                  </span>
-                  <p className="mt-2.5 text-sm font-semibold text-emerald-900">
-                    {evolucao.psicologo_nome}
-                    {evolucao.crp ? ` · CRP ${evolucao.crp}` : ""}
-                  </p>
-                  <p className="mt-1 text-xs text-emerald-700/80">
-                    {formatarDataHora(evolucao.assinado_em)}
-                  </p>
-                </div>
-                {evolucao.assinatura_url && (
-                  <div className="rounded-xl border border-emerald-100 bg-white/90 p-2.5 shadow-sm">
-                    <Image
-                      src={evolucao.assinatura_url}
-                      alt="Assinatura profissional"
-                      width={280}
-                      height={90}
-                      className="max-h-20 max-w-[220px] object-contain"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2 border-gray-100 border-t pt-2.5">
-            {podeEditar && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onEditar(evolucao)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#9F64AF]/20 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#9F64AF] transition hover:bg-[#F3EAF8]"
-                >
-                  <PenLine size={13} />
-                  Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onFinalizar(evolucao)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#9F64AF] px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#8B509B]"
-                >
-                  <CheckCircle2 size={13} />
-                  Finalizar
-                </button>
-              </>
-            )}
-            {evolucao.status === "finalizado" && (
-              <button
-                type="button"
-                onClick={() => onAssinar(evolucao)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#9F64AF] px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-[#8B509B]"
-              >
-                <Signature size={13} />
-                Assinar registro
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </article>
-  );
-}
-
-function TimelineClinica({
-  evolucoes,
-  onEditar,
-  onFinalizar,
-  onAssinar,
-}: {
-  evolucoes: RegistroClinico[];
-  onEditar: (evolucao: RegistroClinico) => void;
-  onFinalizar: (evolucao: RegistroClinico) => void;
-  onAssinar: (evolucao: RegistroClinico) => void;
-}) {
-  return (
-    <section className="space-y-6">
-      {evolucoes.map((evolucao, index) => (
-        <div key={evolucao.id} className="grid gap-3 md:grid-cols-[104px_1fr]">
-          <div className="flex md:justify-end">
-            <div className="rounded-xl border border-[#9F64AF]/15 bg-white/75 px-2.5 py-1.5 text-left shadow-sm md:text-right">
-              <p className="text-[11px] font-semibold text-[#9F64AF]">
-                {formatarData(evolucao.data_registro)}
-              </p>
-              <p className="mt-0.5 text-[10px] text-gray-400">
-                {tipoAtendimentoLabel(evolucao.tipo_atendimento)}
-              </p>
-            </div>
-          </div>
-
-          <div className="relative pl-4">
-            {/* A timeline reforça a leitura histórica do prontuário clínico. */}
-            <span className="absolute top-2 left-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#9F64AF] shadow-[0_0_0_4px_rgba(159,100,175,0.16)]" />
-            {index < evolucoes.length - 1 && (
-              <span className="absolute top-5 bottom-[-1.25rem] left-[4px] w-px bg-[#D9BCE8]" />
-            )}
-            <span className="sr-only">Linha do tempo clínica</span>
-            <CardEvolucao
-              evolucao={evolucao}
-              onEditar={onEditar}
-              onFinalizar={onFinalizar}
-              onAssinar={onAssinar}
-            />
-          </div>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function ModalConfirmacao({
-  aberto,
-  titulo,
-  descricao,
-  textoConfirmar,
-  carregando,
-  variante = "padrao",
-  onClose,
-  onConfirmar,
-}: {
-  aberto: boolean;
-  titulo: string;
-  descricao: string;
-  textoConfirmar: string;
-  carregando?: boolean;
-  variante?: "padrao" | "perigo";
-  onClose: () => void;
-  onConfirmar: () => void;
-}) {
-  const [montado, setMontado] = useState(false);
-
-  useEffect(() => setMontado(true), []);
-  useEffect(() => {
-    if (!aberto) return;
-    const handleKeyDown = (evento: KeyboardEvent) => {
-      if (evento.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [aberto, onClose]);
-
-  if (!aberto || !montado) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="absolute inset-0 bg-black/45 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative w-full max-w-md rounded-2xl border border-[#9F64AF]/15 bg-white p-6 shadow-2xl"
-      >
-        <h2 className="text-lg font-semibold text-gray-800">{titulo}</h2>
-        <p className="mt-2 text-sm leading-6 text-gray-600">{descricao}</p>
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={carregando}
-            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-60"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={onConfirmar}
-            disabled={carregando}
-            className={`rounded-xl px-5 py-2.5 text-sm font-medium text-white shadow-sm transition disabled:opacity-60 ${
-              variante === "perigo"
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-[#9F64AF] hover:bg-[#8B509B]"
-            }`}
-          >
-            {carregando ? "Processando..." : textoConfirmar}
-          </button>
-        </div>
-      </motion.div>
-    </div>,
-    document.body,
-  );
-}
-
 export default function ProntuarioPage() {
   const router = useRouter();
   const { usuario, carregando, fazerLogout } = useAutenticacao();
@@ -1697,7 +1390,8 @@ export default function ProntuarioPage() {
   const [evolucaoEdicao, setEvolucaoEdicao] = useState<RegistroClinico | null>(
     null,
   );
-  const [confirmacao, setConfirmacao] = useState<RegistroClinico | null>(null);
+  const [evolucaoVisualizacao, setEvolucaoVisualizacao] =
+    useState<RegistroClinico | null>(null);
   const { data: pacientesData } = useListarPacientes({
     visibilidade: "ativo",
     limit: 100,
@@ -1850,6 +1544,8 @@ export default function ProntuarioPage() {
       ? "Este paciente está vinculado a outro psicólogo responsável."
       : mensagemErroProntuario
     : "";
+  const temFiltroOuBuscaAtivo =
+    Boolean(busca.trim()) || Object.values(filtrosProntuario).some(Boolean);
 
   const abrirNovo = () => {
     setEvolucaoEdicao(null);
@@ -1860,6 +1556,15 @@ export default function ProntuarioPage() {
     try {
       await finalizarEvolucao.mutateAsync(evolucao.id);
       toast.success("Registro finalizado");
+      setEvolucaoVisualizacao((atual) =>
+        atual?.id === evolucao.id
+          ? {
+              ...atual,
+              status: "finalizado",
+              finalizado_em: atual.finalizado_em || new Date().toISOString(),
+            }
+          : atual,
+      );
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Erro ao finalizar registro",
@@ -1869,15 +1574,51 @@ export default function ProntuarioPage() {
 
   const executarAssinatura = async (evolucao: RegistroClinico) => {
     try {
-      await assinarEvolucao.mutateAsync(evolucao.id);
+      const resposta = await assinarEvolucao.mutateAsync(evolucao.id);
       toast.success("Registro assinado");
-      setConfirmacao(null);
+      const dadosAssinatura = resposta?.data;
+      setEvolucaoVisualizacao((atual) =>
+        atual?.id === evolucao.id
+          ? {
+              ...atual,
+              status: "assinado",
+              assinatura_url:
+                dadosAssinatura?.assinatura_url || atual.assinatura_url,
+              assinado_em: dadosAssinatura?.assinado_em || atual.assinado_em,
+            }
+          : atual,
+      );
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Erro ao assinar registro",
       );
     }
   };
+
+  const gerarPdfRegistroClinico = useCallback(
+    async (evolucao: RegistroClinico) => {
+      try {
+        await gerarRegistroClinicoPdf(evolucao);
+        toast.success("PDF gerado com sucesso");
+      } catch (error) {
+        console.error("Erro ao gerar PDF do registro clínico:", error);
+        toast.error("Não foi possível gerar o PDF");
+      }
+    },
+    [],
+  );
+
+  const imprimirRegistroClinicoVisualizacao = useCallback(
+    (evolucao: RegistroClinico) => {
+      try {
+        imprimirRegistroClinico(evolucao);
+      } catch (error) {
+        console.error("Erro ao imprimir registro clínico:", error);
+        toast.error("Não foi possível abrir a impressão");
+      }
+    },
+    [],
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F3EAF8] to-[#E1D4F0]">
@@ -1910,56 +1651,7 @@ export default function ProntuarioPage() {
 
         <main className="px-8 pb-8">
           <div className="mx-auto max-w-5xl space-y-8 pt-4">
-            <section className="mt-4 rounded-2xl border border-[#9F64AF]/20 bg-white/70 p-6 shadow-sm backdrop-blur-sm">
-              {/* Resumo operacional segue o mesmo padrão de Agenda e Funcionamento. */}
-              <div className="mb-4 flex items-center gap-2">
-                <RxGear size={16} className="animate-spin text-[#9F64AF]" />
-                <h2 className="text-sm font-semibold text-gray-800">
-                  Resumo operacional
-                </h2>
-              </div>
-
-              <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
-                <div className="flex min-w-0 flex-col">
-                  <span className="text-xs text-gray-500">Registros hoje</span>
-                  <span className="font-semibold text-gray-800">
-                    {resumoOperacional.evolucoesHoje}
-                  </span>
-                </div>
-                <div className="flex min-w-0 flex-col">
-                  <span className="text-xs text-gray-500">
-                    Pacientes em acompanhamento
-                  </span>
-                  <span className="font-semibold text-gray-800">
-                    {resumoOperacional.pacientesAcompanhamento}
-                  </span>
-                </div>
-                <div className="flex min-w-0 flex-col">
-                  <span className="text-xs text-gray-500">
-                    Pendentes de assinatura
-                  </span>
-                  <span className="font-semibold text-gray-800">
-                    {resumoOperacional.pendentesAssinatura}
-                  </span>
-                </div>
-                <div className="flex min-w-0 flex-col">
-                  <span className="text-xs text-gray-500">
-                    Registros assinados
-                  </span>
-                  <span className="font-semibold text-gray-800">
-                    {resumoOperacional.assinadasSemana}
-                  </span>
-                </div>
-                <div className="flex min-w-0 flex-col">
-                  <span className="text-xs text-gray-500">
-                    Último registro clínico
-                  </span>
-                  <span className="truncate font-semibold text-gray-800">
-                    {resumoOperacional.ultimaEvolucao}
-                  </span>
-                </div>
-              </div>
-            </section>
+            <ResumoProntuario resumo={resumoOperacional} />
 
             <section className="rounded-2xl border border-[#9F64AF]/20 bg-white/70 p-4 shadow-sm backdrop-blur-sm sm:p-5">
               <div className="relative z-30 mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1972,8 +1664,19 @@ export default function ProntuarioPage() {
                     value={busca}
                     onChange={(evento) => setBusca(evento.target.value)}
                     placeholder="Buscar por paciente..."
-                    className="h-11 w-full rounded-xl border border-gray-200 bg-white/90 pr-3 pl-10 text-sm text-gray-700 outline-none transition focus:border-[#9F64AF]/70 lg:w-[360px]"
+                    className="h-11 w-full rounded-xl border border-gray-200 bg-white/90 pr-10 pl-10 text-sm text-gray-700 outline-none transition focus:border-[#9F64AF]/70 lg:w-[360px]"
                   />
+                  {busca.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setBusca("")}
+                      className="absolute top-1/2 right-2 inline-flex -translate-y-1/2 items-center justify-center rounded-lg p-1.5 text-gray-500 transition hover:bg-[#F3EAF8] hover:text-[#9F64AF]"
+                      aria-label="Limpar busca"
+                      title="Limpar busca"
+                    >
+                      <BrushCleaning size={15} />
+                    </button>
+                  )}
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <FiltrosProntuario
@@ -2021,22 +1724,26 @@ export default function ProntuarioPage() {
                       <FileText size={34} />
                     </span>
                     <h2 className="mt-4 text-base font-semibold text-gray-800">
-                      Nenhum registro clínico encontrado
+                      {temFiltroOuBuscaAtivo
+                        ? "Nenhum resultado encontrado"
+                        : "Nenhum registro clínico encontrado"}
                     </h2>
                     <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">
-                      Os registros clínicos dos pacientes aparecerão aqui
-                      conforme os atendimentos forem realizados.
+                      {temFiltroOuBuscaAtivo
+                        ? "Não encontramos registros clínicos para os filtros ou termo pesquisado. Limpe a busca ou ajuste os filtros para visualizar outros registros."
+                        : "Os registros clínicos dos pacientes aparecerão aqui conforme os atendimentos forem realizados."}
                     </p>
                   </section>
                 ) : (
-                  <TimelineClinica
+                  <TimelineRegistros
                     evolucoes={evolucoes}
+                    onVisualizar={setEvolucaoVisualizacao}
                     onEditar={(item) => {
                       setEvolucaoEdicao(item);
                       setModalAberto(true);
                     }}
                     onFinalizar={confirmarFinalizacao}
-                    onAssinar={(item) => setConfirmacao(item)}
+                    onAssinar={executarAssinatura}
                   />
                 )}
               </div>
@@ -2056,18 +1763,18 @@ export default function ProntuarioPage() {
         }}
       />
 
-      <ModalConfirmacao
-        aberto={Boolean(confirmacao)}
-        titulo="Assinar registro"
-        descricao="Após assinar, este registro não poderá ser editado. A assinatura profissional cadastrada no Perfil Profissional será copiada para o prontuário."
-        textoConfirmar="Assinar registro"
-        variante="padrao"
-        carregando={assinarEvolucao.isPending}
-        onClose={() => setConfirmacao(null)}
-        onConfirmar={() => {
-          if (!confirmacao) return;
-          executarAssinatura(confirmacao);
+      <ModalVisualizarRegistroClinico
+        evolucao={evolucaoVisualizacao}
+        onClose={() => setEvolucaoVisualizacao(null)}
+        onEditar={(item) => {
+          setEvolucaoVisualizacao(null);
+          setEvolucaoEdicao(item);
+          setModalAberto(true);
         }}
+        onFinalizar={confirmarFinalizacao}
+        onAssinar={executarAssinatura}
+        onGerarPdf={gerarPdfRegistroClinico}
+        onImprimir={imprimirRegistroClinicoVisualizacao}
       />
     </div>
   );

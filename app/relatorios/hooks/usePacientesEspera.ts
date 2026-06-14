@@ -14,4 +14,3 @@ export function usePacientesEspera(
     enabled: options.enabled ?? true,
   });
 }
-

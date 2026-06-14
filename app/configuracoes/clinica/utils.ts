@@ -242,4 +242,3 @@ export function resumoOperacionalClinica(
 export function temImagem(arquivo?: string | null) {
   return Boolean(arquivo?.trim());
 }
-

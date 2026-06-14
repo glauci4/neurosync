@@ -160,14 +160,14 @@ export default function DadosResponsavel({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Nome completo <span className="text-red-500">*</span>
           </label>
-              <input
-                type="text"
-                name="nome"
-                value={responsavel.nome}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] bg-white text-gray-800"
-              />
-              {erros.nome && (
+          <input
+            type="text"
+            name="nome"
+            value={responsavel.nome}
+            onChange={handleChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] bg-white text-gray-800"
+          />
+          {erros.nome && (
             <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium leading-5 text-red-500">
               <MdErrorOutline size={16} className="shrink-0" />
               {erros.nome}
@@ -179,15 +179,15 @@ export default function DadosResponsavel({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             CPF <span className="text-red-500">*</span>
           </label>
-              <input
-                type="text"
-                name="cpf"
-                value={responsavel.cpf}
-                onChange={handleCpfChange}
-                placeholder="000.000.000-00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] bg-white text-gray-800"
-              />
-              {erros.cpf && (
+          <input
+            type="text"
+            name="cpf"
+            value={responsavel.cpf}
+            onChange={handleCpfChange}
+            placeholder="000.000.000-00"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] bg-white text-gray-800"
+          />
+          {erros.cpf && (
             <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium leading-5 text-red-500">
               <MdErrorOutline size={16} className="shrink-0" />
               {erros.cpf}
@@ -199,15 +199,15 @@ export default function DadosResponsavel({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Telefone <span className="text-red-500">*</span>
           </label>
-              <input
-                type="tel"
-                name="telefone"
-                value={responsavel.telefone}
-                onChange={handleTelefoneChange}
-                placeholder="(00) 00000-0000"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] bg-white text-gray-800"
-              />
-              {erros.telefone && (
+          <input
+            type="tel"
+            name="telefone"
+            value={responsavel.telefone}
+            onChange={handleTelefoneChange}
+            placeholder="(00) 00000-0000"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9F64AF] bg-white text-gray-800"
+          />
+          {erros.telefone && (
             <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium leading-5 text-red-500">
               <MdErrorOutline size={16} className="shrink-0" />
               {erros.telefone}
@@ -219,13 +219,13 @@ export default function DadosResponsavel({
           <DropdownSelect
             label="Grau de parentesco"
             value={responsavel.grau_parentesco}
-              options={[
-                { value: "", label: "Selecione" },
-                ...OPCOES_PARENTESCO.map((op) => ({ value: op, label: op })),
-              ]}
-              placeholder="Selecione"
-              required
-              error={erros.grau}
+            options={[
+              { value: "", label: "Selecione" },
+              ...OPCOES_PARENTESCO.map((op) => ({ value: op, label: op })),
+            ]}
+            placeholder="Selecione"
+            required
+            error={erros.grau}
             onChange={(valor) => {
               setResponsavel((prev: any) => ({
                 ...prev,
@@ -416,4 +416,3 @@ export default function DadosResponsavel({
     </div>
   );
 }
-

@@ -15,4 +15,3 @@ export function useReativarUsuarioSistema() {
     onError: (error: Error) => toast.error(error.message),
   });
 }
-

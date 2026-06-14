@@ -31,4 +31,3 @@ export async function alterarEmail(payload: AlterarEmailPayload) {
 
   return tratarResposta<RespostaAlterarEmail>(resposta);
 }
-

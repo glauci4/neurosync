@@ -78,4 +78,3 @@ export function varianteStatusConsulta(status: string): BadgeVariant {
 
   return variantes[status] || "cinza";
 }
-

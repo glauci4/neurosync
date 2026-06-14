@@ -18,4 +18,3 @@ export async function getConnection() {
     throw error;
   }
 }
-

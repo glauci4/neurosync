@@ -151,4 +151,3 @@ export async function gerarNotificacoesOperacionais() {
 export function labelTipoNotificacao(tipo: string) {
   return obterRotuloTipoNotificacao(tipo);
 }
-

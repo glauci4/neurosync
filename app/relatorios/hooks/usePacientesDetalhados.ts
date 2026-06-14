@@ -14,4 +14,3 @@ export function usePacientesDetalhados(
     enabled: options.enabled ?? true,
   });
 }
-

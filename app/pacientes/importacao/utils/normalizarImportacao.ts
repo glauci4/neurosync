@@ -135,4 +135,3 @@ export async function lerArquivoPacientes(
 export function obterColunasEsperadas() {
   return COLUNAS_ESPERADAS;
 }
-

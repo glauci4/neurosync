@@ -1,4 +1,4 @@
-import type { ResultSetHeader } from "mysql2";
+import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { getConnection } from "@/lib/mysql";
 import {
   type ConexaoMySQL,
@@ -76,7 +76,19 @@ export async function POST(_request: Request, context: RouteContext) {
       );
     }
 
-    return Response.json({ success: true, message: "Evolução assinada" });
+    const [registros] = await connection.execute<RowDataPacket[]>(
+      `SELECT status, assinatura_url, assinado_em
+       FROM registros_clinicos
+       WHERE id = ? AND clinica_id = ? AND psicologo_id = ?
+         AND deleted_at IS NULL`,
+      [evolucaoId, usuario.clinica_id, usuario.id],
+    );
+
+    return Response.json({
+      success: true,
+      message: "Evolução assinada",
+      data: registros[0] || null,
+    });
   } catch (error) {
     console.error("Erro ao assinar evolução:", error);
     return Response.json({ error: "Erro interno" }, { status: 500 });
@@ -84,4 +96,3 @@ export async function POST(_request: Request, context: RouteContext) {
     if (connection) await connection.end();
   }
 }
-

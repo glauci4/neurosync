@@ -101,4 +101,3 @@ export async function GET(request: Request) {
     if (connection) await connection.end();
   }
 }
-

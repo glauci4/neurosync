@@ -80,4 +80,3 @@ export default function CardContaAcesso({ perfil }: { perfil: PerfilData }) {
     </section>
   );
 }
-

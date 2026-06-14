@@ -53,4 +53,3 @@ export interface ClinicaData {
   total_campos_configurados?: number;
   total_campos_pendentes?: number;
 }
-

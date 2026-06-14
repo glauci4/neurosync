@@ -34,4 +34,3 @@ export function useExcecoes() {
 
   return { query, criar, excluir };
 }
-

@@ -15,4 +15,3 @@ export function useExcluirUsuarioSistema() {
     onError: (error: Error) => toast.error(error.message),
   });
 }
-

@@ -31,4 +31,3 @@ export function usePacientePorId(pacienteId: number | null) {
     gcTime: 0, // Limpa o cache ao desmontar (opcional)
   });
 }
-

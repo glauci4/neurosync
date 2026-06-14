@@ -23,7 +23,9 @@ interface FuncionamentoSemanalProps {
   modoConsultaOperacional?: boolean; // secretária visualiza disponibilidade sem alterar regras
   onChange: (index: number, field: keyof Horario, value: unknown) => void;
   onCopiar: (origemIdx: number, destinos: number[]) => void;
-  onAplicarMensal: (params: AplicacaoMensalFuncionamento) => void | Promise<void>;
+  onAplicarMensal: (
+    params: AplicacaoMensalFuncionamento,
+  ) => void | Promise<void>;
   onAplicarDiasUteis: () => void;
   onFecharFinsDeSemana: () => void;
   onLimparHorarios: () => void;
@@ -181,4 +183,3 @@ export default function FuncionamentoSemanal({
     </>
   );
 }
-

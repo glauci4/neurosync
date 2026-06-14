@@ -125,7 +125,7 @@ export async function POST(request: Request) {
     const usuario = sessao as NonNullable<typeof sessao>;
 
     const body = await request.json();
-    const validacao = validarPayloadProntuario(body, Boolean(body.finalizar));
+    const validacao = validarPayloadProntuario(body);
     if ("erro" in validacao) {
       return Response.json({ error: validacao.erro }, { status: 400 });
     }

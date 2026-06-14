@@ -136,4 +136,3 @@ export function calcularHorasDisponiveisPeriodo(
 
   return Number((totalMinutos / 60).toFixed(2));
 }
-

@@ -22,4 +22,3 @@ export default function ThemeScript() {
   // biome-ignore lint/security/noDangerouslySetInnerHtml: script inline mínimo para aplicar a classe de tema antes da hidratação e reduzir flicker.
   return <script dangerouslySetInnerHTML={{ __html: themeScript }} />;
 }
-

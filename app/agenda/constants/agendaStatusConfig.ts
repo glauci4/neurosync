@@ -180,4 +180,3 @@ export function obterAgendaStatusConfig(status?: string) {
 
   return agendaStatusConfig.agendado;
 }
-

@@ -44,4 +44,3 @@ export function useInativarUsuarioSistema() {
     onError: (error: Error) => toast.error(error.message),
   });
 }
-

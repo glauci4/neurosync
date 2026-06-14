@@ -355,4 +355,3 @@ export const relatorioPdfStyles = StyleSheet.create({
     fontWeight: 700,
   },
 });
-

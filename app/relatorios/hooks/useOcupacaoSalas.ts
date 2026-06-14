@@ -14,4 +14,3 @@ export function useOcupacaoSalas(
     enabled: options.enabled ?? true,
   });
 }
-

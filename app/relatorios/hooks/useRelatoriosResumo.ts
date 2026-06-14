@@ -14,4 +14,3 @@ export function useRelatoriosResumo(
     enabled: options.enabled ?? true,
   });
 }
-

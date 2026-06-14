@@ -93,4 +93,3 @@ export async function validarInativacaoUsuario(
 ) {
   return validarAdministradorClinica(connection, sessao);
 }
-

@@ -59,4 +59,3 @@ export async function excluirSala(id: number) {
   });
   return tratarResposta(resposta);
 }
-

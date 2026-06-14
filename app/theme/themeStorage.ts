@@ -44,4 +44,3 @@ export function applyThemePreference(preference: ThemePreference) {
   document.documentElement.dataset.themePreference = preference;
   document.documentElement.dataset.theme = resolvedTheme;
 }
-

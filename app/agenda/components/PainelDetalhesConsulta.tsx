@@ -6,7 +6,6 @@ import {
   CalendarOff,
   CalendarX2,
   Clock,
-  ExternalLink,
   FileText,
   History,
   MapPin,
@@ -121,6 +120,37 @@ function AvatarPsicologo({
   );
 }
 
+function LinhaProntuario({ disponivel }: { disponivel: boolean }) {
+  return (
+    <div className="flex gap-3 rounded-2xl border border-[#9F64AF]/10 bg-white/70 p-3">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#F3EAF8] text-[#9F64AF]">
+        <FileText size={16} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase">
+          Prontuário
+        </p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          <p className="truncate text-sm font-medium text-gray-700">
+            Não registrado
+          </p>
+          <span className="rounded-full border border-[#D9BCE8] bg-[#F3EAF8] px-2 py-0.5 text-[10px] font-semibold text-[#5F2D6D]">
+            Pendente
+          </span>
+        </div>
+        <button
+          type="button"
+          disabled={!disponivel}
+          title={disponivel ? "Em breve" : "Indisponível"}
+          className="mt-2 inline-flex cursor-not-allowed items-center rounded-lg px-0 text-xs font-semibold text-[#9F64AF] opacity-70"
+        >
+          Registrar prontuário
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function dadosConfirmacao(acao?: AcaoConfirmacao) {
   if (acao === "cancelar") {
     return {
@@ -190,6 +220,9 @@ export default function PainelDetalhesConsulta({
       ? consulta.tipo_outro
       : tipoAtendimentoLabel[consulta.tipo_atendimento];
   const confirmacao = dadosConfirmacao(acaoConfirmacao || "concluir");
+  const prontuarioDisponivel =
+    "preparaProntuario" in config.regras &&
+    Boolean(config.regras.preparaProntuario);
 
   const confirmarMudancaStatus = async () => {
     if (!acaoConfirmacao) return;
@@ -268,7 +301,7 @@ export default function PainelDetalhesConsulta({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="agenda-detalhes-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <section>
               <h3 className="mb-3 text-sm font-semibold text-gray-800">
                 Dados da consulta
@@ -305,6 +338,7 @@ export default function PainelDetalhesConsulta({
                   label="Tipo de atendimento"
                   valor={tipoAtendimento}
                 />
+                <LinhaProntuario disponivel={prontuarioDisponivel} />
               </div>
 
               <div className="mt-4 rounded-2xl border border-[#9F64AF]/10 bg-[#FBF7FF] p-4">
@@ -348,38 +382,6 @@ export default function PainelDetalhesConsulta({
                 </div>
               </div>
             </section>
-
-            {"preparaProntuario" in config.regras &&
-              config.regras.preparaProntuario && (
-                <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-700">
-                  <div className="flex items-start gap-3">
-                    <FileText size={18} className="mt-0.5 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="font-semibold">
-                        Prontuário preparado para esta consulta
-                      </p>
-                      <p className="mt-1 leading-6">
-                        A integração futura usará consulta_id {consulta.id},
-                        paciente_id {consulta.paciente_id}, psicologo_id{" "}
-                        {consulta.psicologo_id} e status concluído para evolução
-                        clínica, relatórios e documentos.
-                      </p>
-                      <button
-                        type="button"
-                        disabled
-                        title="Em breve"
-                        className="mt-3 inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-emerald-200 bg-white/70 px-3 py-2 text-xs font-semibold text-emerald-700 opacity-70"
-                      >
-                        <ExternalLink size={14} />
-                        Abrir prontuário
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px]">
-                          Em breve
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
             {podeOperar &&
             (config.regras.podeEditar ||
@@ -435,12 +437,27 @@ export default function PainelDetalhesConsulta({
                   )}
                 </div>
               </div>
-            ) : (
-              <div className="mt-6 rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-500">
-                Esta consulta está disponível apenas para histórico.
-              </div>
-            )}
+            ) : null}
           </div>
+          <style jsx global>{`
+            .agenda-detalhes-scroll {
+              scrollbar-width: thin;
+              scrollbar-color: rgba(159, 100, 175, 0.45) transparent;
+            }
+            .agenda-detalhes-scroll::-webkit-scrollbar {
+              width: 7px;
+            }
+            .agenda-detalhes-scroll::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .agenda-detalhes-scroll::-webkit-scrollbar-thumb {
+              background: rgba(159, 100, 175, 0.35);
+              border-radius: 999px;
+            }
+            .agenda-detalhes-scroll::-webkit-scrollbar-thumb:hover {
+              background: rgba(159, 100, 175, 0.55);
+            }
+          `}</style>
         </motion.section>
       </div>
 

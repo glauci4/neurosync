@@ -129,4 +129,3 @@ export default function GraficoPacientesStatus({
     </section>
   );
 }
-

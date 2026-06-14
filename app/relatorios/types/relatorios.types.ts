@@ -197,4 +197,3 @@ export interface RelatorioPrintConfig {
   titulo: string;
   secoes: RelatorioPrintSecao[];
 }
-

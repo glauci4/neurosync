@@ -44,4 +44,3 @@ export const STATUS_CONFIG: Record<
     icone: ShieldCheck,
   },
 };
-

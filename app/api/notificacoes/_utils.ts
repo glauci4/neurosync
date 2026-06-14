@@ -27,4 +27,3 @@ export interface LinhaNotificacao extends RowDataPacket {
   lida_em: string | null;
   criado_em: string;
 }
-

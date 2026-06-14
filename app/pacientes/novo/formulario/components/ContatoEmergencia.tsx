@@ -55,7 +55,9 @@ export default function ContatoEmergencia({
   };
 
   const haAlgumDadoPreenchido = () =>
-    Boolean(contato.nome?.trim() || contato.telefone?.trim() || contato.parentesco);
+    Boolean(
+      contato.nome?.trim() || contato.telefone?.trim() || contato.parentesco,
+    );
 
   const validarNome = () => {
     setCampoTocado(true);
@@ -96,7 +98,11 @@ export default function ContatoEmergencia({
     validarNome();
     if (contato.nome?.trim() && !contato.parentesco) {
       setErroParentesco("Parentesco é obrigatório");
-    } else if (!contato.nome?.trim() && !contato.telefone?.trim() && !contato.parentesco) {
+    } else if (
+      !contato.nome?.trim() &&
+      !contato.telefone?.trim() &&
+      !contato.parentesco
+    ) {
       setErroParentesco("");
     }
   };
@@ -212,4 +218,3 @@ export default function ContatoEmergencia({
     </div>
   );
 }
-

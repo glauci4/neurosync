@@ -87,4 +87,3 @@ export function useSalasAtivasParaAgenda() {
     queryFn: listarSalasAtivasParaAgenda,
   });
 }
-

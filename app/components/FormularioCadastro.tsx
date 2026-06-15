@@ -6,6 +6,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { MdErrorOutline } from "react-icons/md";
 import { toast } from "sonner"; // Notificações não intrusivas
@@ -43,6 +44,7 @@ function mascararCPF(valor: string): string {
 
 export default function FormularioCadastro() {
   const cadastrarUsuario = useCadastroUsuario();
+  const router = useRouter();
 
   // Estados para os campos do formulário
   const [nome, setNome] = useState("");
@@ -339,10 +341,8 @@ export default function FormularioCadastro() {
       setErroSenha("");
       setErroConfirmarSenha("");
 
-      // Redireciona para a tela de login após um pequeno delay para manter o toast visível
-      window.setTimeout(() => {
-        window.location.replace("/");
-      }, 1500);
+      // Redireciona para a tela de login imediatamente após sucesso
+      router.replace("/");
     } catch (error) {
       console.error("Erro no cadastro:", error);
       const mensagem =

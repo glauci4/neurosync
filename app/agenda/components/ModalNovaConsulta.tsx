@@ -122,6 +122,8 @@ function ComboboxConsulta({
     [busca, opcoes],
   );
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (!aberto) return;
 
@@ -134,15 +136,29 @@ function ComboboxConsulta({
       }
     };
 
-    // No modal, clique fora não fecha o select: apenas ESC ou seleção fecham.
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [aberto]);
 
+  // Fecha ao clicar fora do combobox (funciona dentro de modais)
+  useEffect(() => {
+    if (!aberto) return;
+
+    function handlePointerDown(e: PointerEvent) {
+      if (!containerRef.current) return;
+      if (containerRef.current.contains(e.target as Node)) return;
+      setAberto(false);
+      setBusca("");
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [aberto]);
+
   return (
-    <div data-combobox-consulta className="relative">
+    <div ref={containerRef} data-combobox-consulta className="relative">
       <span className="mb-1.5 block text-xs font-semibold text-gray-600">
         {label}
         {obrigatorio && <span className="text-red-500"> *</span>}
@@ -150,7 +166,7 @@ function ComboboxConsulta({
       <button
         type="button"
         onClick={() => setAberto((atual) => !atual)}
-        className={`flex h-11 w-full items-center justify-between gap-2 rounded-xl border bg-white/90 px-3 text-left text-sm text-gray-700 shadow-sm transition hover:border-[#9F64AF]/50 ${
+        className={`flex h-11 w-full items-center justify-between gap-2 rounded-xl border bg-white/90 px-3 text-left text-sm text-gray-700 shadow-sm ${
           erro ? "border-red-300" : "border-gray-200"
         }`}
       >
@@ -176,7 +192,7 @@ function ComboboxConsulta({
             />
           </div>
 
-          <div className="max-h-56 overflow-y-auto">
+          <div className="max-h-56 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[#9F64AF]/60">
             {filtradas.map((opcao) => {
               const selecionada = valor === opcao.valor;
 

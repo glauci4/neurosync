@@ -7,13 +7,17 @@ import {
   Clock,
   FileText,
   MapPin,
+  Search,
   User,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuCalendarRange } from "react-icons/lu";
-import { obterAgendaStatusConfig } from "../constants/agendaStatusConfig";
+import {
+  obterAgendaStatusConfig,
+  obterStatusConsultaExibicao,
+} from "../constants/agendaStatusConfig";
 import type { ConsultaAgenda } from "./CalendarioAgenda";
 
 interface ModalConsultasDiaProps {
@@ -21,6 +25,7 @@ interface ModalConsultasDiaProps {
   data: string;
   consultas: ConsultaAgenda[];
   onClose: () => void;
+  atalhosBloqueados?: boolean;
   onSelecionarConsulta: (consulta: ConsultaAgenda) => void;
   onNovaConsulta: (data: string) => void;
 }
@@ -64,6 +69,7 @@ export default function ModalConsultasDia({
   data,
   consultas,
   onClose,
+  atalhosBloqueados = false,
   onSelecionarConsulta,
   onNovaConsulta,
 }: ModalConsultasDiaProps) {
@@ -72,7 +78,7 @@ export default function ModalConsultasDia({
   useEffect(() => setMontado(true), []);
 
   useEffect(() => {
-    if (!aberto) return;
+    if (!aberto || atalhosBloqueados) return;
 
     const handleKeyDown = (evento: KeyboardEvent) => {
       if (evento.key === "Escape") onClose();
@@ -80,15 +86,19 @@ export default function ModalConsultasDia({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [aberto, onClose]);
+  }, [aberto, atalhosBloqueados, onClose]);
+
+  const consultasOrdenadas = useMemo(
+    () =>
+      [...consultas].sort((a, b) =>
+        `${a.horario_inicio}${a.paciente_nome}`.localeCompare(
+          `${b.horario_inicio}${b.paciente_nome}`,
+        ),
+      ),
+    [consultas],
+  );
 
   if (!aberto || !montado) return null;
-
-  const consultasOrdenadas = [...consultas].sort((a, b) =>
-    `${a.horario_inicio}${a.paciente_nome}`.localeCompare(
-      `${b.horario_inicio}${b.paciente_nome}`,
-    ),
-  );
 
   return createPortal(
     <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4">
@@ -128,9 +138,10 @@ export default function ModalConsultasDia({
               </p>
             </div>
           </div>
+
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="agenda-consultas-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {consultasOrdenadas.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#D9BCE8] bg-[#FBF7FF] px-6 py-10 text-center">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#9F64AF]">
@@ -151,7 +162,9 @@ export default function ModalConsultasDia({
           ) : (
             <div className="space-y-3">
               {consultasOrdenadas.map((consulta) => {
-                const config = obterAgendaStatusConfig(consulta.status);
+                const config = obterAgendaStatusConfig(
+                  obterStatusConsultaExibicao(consulta),
+                );
                 const IconeStatus = config.icone;
                 return (
                   <button
@@ -216,6 +229,25 @@ export default function ModalConsultasDia({
             </div>
           )}
         </div>
+        <style jsx global>{`
+          .agenda-consultas-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(159, 100, 175, 0.45) transparent;
+          }
+          .agenda-consultas-scroll::-webkit-scrollbar {
+            width: 7px;
+          }
+          .agenda-consultas-scroll::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .agenda-consultas-scroll::-webkit-scrollbar-thumb {
+            background: rgba(159, 100, 175, 0.35);
+            border-radius: 999px;
+          }
+          .agenda-consultas-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(159, 100, 175, 0.55);
+          }
+        `}</style>
       </motion.section>
     </div>,
     document.body,

@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ShieldAlert, X } from "lucide-react";
-import { useId } from "react";
+import { X, Check, ChevronDown } from "lucide-react";
+import { useId, useEffect, useRef, useState } from "react";
+import { MdErrorOutline } from "react-icons/md";
 import type { UsuarioSistema } from "../types/usuariosSistema.types";
 
 interface ModalTransferirAdministracaoProps {
@@ -28,6 +29,82 @@ export default function ModalTransferirAdministracao({
 
   if (!aberto) return null;
 
+  function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
+    useEffect(() => {
+      function onPointerDown(e: PointerEvent) {
+        if (!ref.current) return;
+        if (ref.current.contains(e.target as Node)) return;
+        handler();
+      }
+      document.addEventListener("pointerdown", onPointerDown);
+      return () => document.removeEventListener("pointerdown", onPointerDown);
+    }, [ref, handler]);
+  }
+
+  function DropdownSimple({
+    id,
+    opcoes,
+    valor,
+    placeholder,
+    onChange,
+  }: {
+    id: string;
+    opcoes: UsuarioSistema[];
+    valor: number | null;
+    placeholder?: string;
+    onChange: (id: number) => void;
+  }) {
+    const [aberto, setAberto] = useState(false);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    useClickOutside(containerRef, () => setAberto(false));
+
+    return (
+      <div ref={containerRef} className="relative">
+        <button
+          id={id}
+          type="button"
+          onClick={() => setAberto((atual) => !atual)}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 text-left text-sm outline-none transition border-gray-200 text-gray-800 hover:border-[#9F64AF]/50 focus:border-[#9F64AF] focus:ring-2 focus:ring-[#9F64AF]/15"
+        >
+          <span className={valor ? "truncate" : "truncate text-gray-400"}>
+            {opcoes.find((o) => o.id === valor)?.nome || placeholder || "Selecione"}
+          </span>
+          <ChevronDown size={16} className={`shrink-0 text-[#9F64AF] transition ${aberto ? "rotate-180" : ""}`} />
+        </button>
+
+        {aberto ? (
+          <div className="absolute left-0 right-0 z-[10000] mt-2 overflow-hidden rounded-xl border border-[#E8DDF0] bg-white shadow-xl">
+            <div className="max-h-44 overflow-y-auto py-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[#9F64AF]/60">
+              {opcoes.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-gray-500">Nenhum psicólogo ativo disponível.</p>
+              ) : (
+                opcoes.map((opcao) => {
+                  const ativo = opcao.id === valor;
+                  return (
+                    <button
+                      key={opcao.id}
+                      type="button"
+                      onClick={() => {
+                        onChange(opcao.id);
+                        setAberto(false);
+                      }}
+                      className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-[#F7F1FA] ${ativo ? "bg-[#F3EAF8] text-[#7E4A8F]" : "text-gray-700"}`}
+                    >
+                      <span className="truncate">{opcao.nome}</span>
+                      {ativo ? <Check size={15} className="shrink-0 text-[#9F64AF]" /> : null}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <motion.div
@@ -50,10 +127,6 @@ export default function ModalTransferirAdministracao({
           <X size={20} />
         </button>
 
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#F3EAF8]">
-          <ShieldAlert size={28} className="text-[#9F64AF]" />
-        </div>
-
         <h3 className="text-lg font-semibold text-gray-800">
           Defina um novo responsável
         </h3>
@@ -69,25 +142,22 @@ export default function ModalTransferirAdministracao({
           >
             Psicólogo ativo
           </label>
-          <select
-            id={psicologoId}
-            value={selecionadoId || ""}
-            onChange={(event) => onSelecionar(Number(event.target.value))}
-            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-[#9F64AF] focus:ring-2 focus:ring-[#9F64AF]/15"
-          >
-            <option value="">Selecione</option>
-            {usuarios.map((usuario) => (
-              <option key={usuario.id} value={usuario.id}>
-                {usuario.nome}
-              </option>
-            ))}
-          </select>
-          {usuarios.length === 0 ? (
-            <p className="text-xs text-amber-700">
-              Não há outro psicólogo ativo disponível para assumir a
-              responsabilidade da clínica.
-            </p>
-          ) : null}
+          <div>
+            <DropdownSimple
+              id={psicologoId}
+              opcoes={usuarios}
+              valor={selecionadoId}
+              placeholder="Selecione"
+              onChange={(id) => onSelecionar(id)}
+            />
+            {usuarios.length === 0 ? (
+              <p className="mt-2 flex items-start gap-1 text-xs text-amber-700">
+                <MdErrorOutline size={14} className="mt-0.5 text-amber-700" />
+                Não há outro psicólogo ativo disponível para assumir a
+                responsabilidade da clínica.
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-6 flex gap-3">

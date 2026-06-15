@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   CalendarCheck2,
   CalendarClock,
   CalendarOff,
@@ -10,6 +11,7 @@ import { LuCalendarCheck } from "react-icons/lu";
 export type AgendaStatus =
   | "agendado"
   | "remarcado"
+  | "pendente"
   | "cancelado"
   | "falta"
   | "concluido";
@@ -66,6 +68,28 @@ export const agendaStatusConfig = {
       podeMarcarFalta: true,
       podeConcluir: true,
       ocupaAgenda: true,
+      mantemHistorico: true,
+    },
+  },
+  pendente: {
+    texto: "Pendente",
+    icone: AlertCircle,
+    descricao: "Consulta já passou sem conclusão",
+    corEvento: "#C84C57",
+    cores: {
+      fundo: "#FEF2F2",
+      texto: "#9F2F36",
+      borda: "#F4B8BE",
+      hover: "#FBDDE1",
+    },
+    badge: "border-[#F4B8BE] bg-[#FEF2F2] text-[#9F2F36] hover:bg-[#FBDDE1]",
+    regras: {
+      podeEditar: false,
+      podeRemarcar: false,
+      podeCancelar: false,
+      podeMarcarFalta: false,
+      podeConcluir: false,
+      ocupaAgenda: false,
       mantemHistorico: true,
     },
   },
@@ -163,6 +187,25 @@ export const agendaStatusConfig = {
   }
 >;
 
+const STATUS_ALIAS: Record<string, AgendaStatus> = {
+  agendada: "agendado",
+  remarcada: "remarcado",
+  concluida: "concluido",
+  realizada: "concluido",
+  cancelada: "cancelado",
+};
+
+function normalizarStatusAgenda(status?: string | null): AgendaStatus {
+  const valor = String(status || "").trim().toLowerCase();
+  if (valor in agendaStatusConfig) {
+    return valor as AgendaStatus;
+  }
+  if (valor in STATUS_ALIAS) {
+    return STATUS_ALIAS[valor];
+  }
+  return "agendado";
+}
+
 export const agendaStatusOpcoes = AGENDA_STATUS_OFICIAIS.map((valor) => {
   const config = agendaStatusConfig[valor];
   return {
@@ -174,9 +217,37 @@ export const agendaStatusOpcoes = AGENDA_STATUS_OFICIAIS.map((valor) => {
 });
 
 export function obterAgendaStatusConfig(status?: string) {
-  if (status && status in agendaStatusConfig) {
-    return agendaStatusConfig[status as AgendaStatus];
-  }
+  return agendaStatusConfig[normalizarStatusAgenda(status)];
+}
 
-  return agendaStatusConfig.agendado;
+function dataHoraConsultaStatus(consulta: {
+  data_consulta?: string | null;
+  horario_fim?: string | null;
+}) {
+  const data = String(consulta.data_consulta || "").slice(0, 10);
+  const fim = String(consulta.horario_fim || "").slice(0, 5);
+
+  if (!data || !fim) return null;
+
+  const dataFim = new Date(`${data}T${fim}`);
+  if (Number.isNaN(dataFim.getTime())) return null;
+
+  return dataFim;
+}
+
+export function obterStatusConsultaExibicao(consulta: {
+  status?: string | null;
+  data_consulta?: string | null;
+  horario_inicio?: string | null;
+  horario_fim?: string | null;
+}): AgendaStatus {
+  const status = normalizarStatusAgenda(consulta.status);
+
+  const pendenteVisual = ["agendado", "agendada", "remarcado", "remarcada", "pendente"];
+  if (!pendenteVisual.includes(status)) return status;
+
+  const fimConsulta = dataHoraConsultaStatus(consulta);
+  if (!fimConsulta) return status;
+
+  return new Date() > fimConsulta ? "pendente" : status;
 }

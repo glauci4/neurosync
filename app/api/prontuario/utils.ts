@@ -372,6 +372,15 @@ export async function obterEvolucaoPorId(
   const [rows] = await connection.execute<RowDataPacket[]>(
     `SELECT pe.*, p.nome AS paciente_nome, u.nome AS psicologo_nome, u.crp,
             p.psicologo_responsavel_id,
+            c.data_consulta AS consulta_data_consulta,
+            c.horario_inicio AS consulta_horario_inicio,
+            c.horario_fim AS consulta_horario_fim,
+            c.status AS consulta_status,
+            c.tipo_atendimento AS consulta_tipo_atendimento,
+            c.tipo_outro AS consulta_tipo_outro,
+            c.observacoes AS consulta_observacoes,
+            s.nome AS consulta_sala_nome,
+            pc.nome AS consulta_psicologo_nome,
             (
               SELECT phe.psicologo_id
               FROM registro_clinico_historico_edicoes phe
@@ -410,6 +419,12 @@ export async function obterEvolucaoPorId(
      FROM registros_clinicos pe
      INNER JOIN pacientes p ON p.id = pe.paciente_id
      INNER JOIN usuarios u ON u.id = pe.psicologo_id
+     LEFT JOIN consultas c
+       ON c.id = pe.consulta_id
+      AND c.clinica_id = pe.clinica_id
+      AND c.deleted_at IS NULL
+     LEFT JOIN salas s ON s.id = c.sala_id
+     LEFT JOIN usuarios pc ON pc.id = c.psicologo_id
      WHERE pe.id = ? AND pe.clinica_id = ? AND pe.deleted_at IS NULL
        AND p.clinica_id = pe.clinica_id
        AND p.deleted_at IS NULL

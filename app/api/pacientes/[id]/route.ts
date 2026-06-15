@@ -183,6 +183,56 @@ export async function GET(
     delete pacienteData.contato_telefone;
     delete pacienteData.contato_parentesco;
 
+    const [resumoHistorico] = await connection.execute<RowDataPacket[]>(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(status IN ('concluido', 'concluida', 'realizado', 'realizada')) AS concluidas,
+         SUM(status = 'falta') AS faltas,
+         SUM(status IN ('cancelado', 'cancelada')) AS canceladas,
+         SUM(status IN ('agendado', 'agendada', 'remarcado', 'remarcada', 'pendente')) AS proximas
+       FROM consultas
+       WHERE paciente_id = ? AND clinica_id = ? AND deleted_at IS NULL`,
+      [pacienteId, clinicaId],
+    );
+
+    const [ultimasConsultas] = await connection.execute<RowDataPacket[]>(
+      `SELECT
+         c.id,
+         c.data_consulta,
+         c.horario_inicio,
+         c.horario_fim,
+         c.status,
+         c.tipo_atendimento,
+         c.tipo_outro,
+         s.nome AS sala_nome,
+         u.nome AS psicologo_nome
+       FROM consultas c
+       LEFT JOIN salas s ON s.id = c.sala_id
+       LEFT JOIN usuarios u ON u.id = c.psicologo_id
+       WHERE c.paciente_id = ? AND c.clinica_id = ? AND c.deleted_at IS NULL
+       ORDER BY c.data_consulta DESC, c.horario_inicio DESC`,
+      [pacienteId, clinicaId],
+    );
+
+    pacienteData.historico_consultas = ultimasConsultas.map((consulta) => ({
+      id: Number(consulta.id),
+      data_consulta: String(consulta.data_consulta || ""),
+      horario_inicio: String(consulta.horario_inicio || ""),
+      horario_fim: String(consulta.horario_fim || ""),
+      status: String(consulta.status || ""),
+      tipo_atendimento: String(consulta.tipo_atendimento || ""),
+      tipo_outro: consulta.tipo_outro ? String(consulta.tipo_outro) : null,
+      sala_nome: consulta.sala_nome ? String(consulta.sala_nome) : null,
+      psicologo_nome: consulta.psicologo_nome ? String(consulta.psicologo_nome) : null,
+    }));
+    pacienteData.historico_consultas_resumo = {
+      total: Number(resumoHistorico[0]?.total || 0),
+      concluidas: Number(resumoHistorico[0]?.concluidas || 0),
+      faltas: Number(resumoHistorico[0]?.faltas || 0),
+      canceladas: Number(resumoHistorico[0]?.canceladas || 0),
+      proximas: Number(resumoHistorico[0]?.proximas || 0),
+    };
+
     return Response.json({ success: true, data: pacienteData });
   } catch (error) {
     console.error("GET erro:", error);

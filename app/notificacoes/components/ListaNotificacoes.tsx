@@ -150,14 +150,17 @@ function ItemNotificacao({
   onMarcarComoLida,
   onMarcarComoNaoLida,
   carregandoAcao,
+  activeMenuId,
+  setActiveMenuId,
 }: {
   notificacao: Notificacao;
   onMarcarComoLida: (id: number) => void;
   onMarcarComoNaoLida: (id: number) => void;
   carregandoAcao?: boolean;
+  activeMenuId: number | null;
+  setActiveMenuId: (id: number | null) => void;
 }) {
   const router = useRouter();
-  const [menuAberto, setMenuAberto] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const lida = notificacao.lida;
   const categoria = obterCategoriaNotificacao(notificacao.tipo);
@@ -169,18 +172,20 @@ function ItemNotificacao({
   );
   const rotuloCategoria = obterRotuloCategoria(notificacao);
 
+  const menuAberto = activeMenuId === notificacao.id;
+
   useEffect(() => {
     if (!menuAberto) return;
 
     function fecharAoClicarFora(evento: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(evento.target as Node)) {
-        setMenuAberto(false);
+        setActiveMenuId(null);
       }
     }
 
     function fecharComEscape(evento: KeyboardEvent) {
       if (evento.key === "Escape") {
-        setMenuAberto(false);
+        setActiveMenuId(null);
       }
     }
 
@@ -191,14 +196,12 @@ function ItemNotificacao({
       document.removeEventListener("mousedown", fecharAoClicarFora);
       document.removeEventListener("keydown", fecharComEscape);
     };
-  }, [menuAberto]);
+  }, [menuAberto, setActiveMenuId]);
 
   function abrirNotificacao() {
     if (!destino) return;
-    if (!lida) {
-      onMarcarComoLida(notificacao.id);
-    }
-    setMenuAberto(false);
+    // Não marcar como lida automaticamente ao abrir — apenas navegar
+    setActiveMenuId(null);
     router.push(destino);
   }
 
@@ -208,7 +211,7 @@ function ItemNotificacao({
     } else {
       onMarcarComoLida(notificacao.id);
     }
-    setMenuAberto(false);
+    setActiveMenuId(null);
   }
 
   return (
@@ -258,7 +261,7 @@ function ItemNotificacao({
         >
           <button
             type="button"
-            onClick={() => setMenuAberto((aberto) => !aberto)}
+            onClick={() => setActiveMenuId(menuAberto ? null : notificacao.id)}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/80 hover:text-[#6F4E7A]"
             aria-expanded={menuAberto}
             aria-label="Abrir ações da notificação"
@@ -267,7 +270,7 @@ function ItemNotificacao({
           </button>
 
           {menuAberto ? (
-            <div className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-xl border border-[#9F64AF]/15 bg-white py-1 text-sm shadow-lg">
+            <div ref={menuRef} className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-[#9F64AF]/15 bg-white py-1 text-sm shadow-lg">
               {destino ? (
                 <button
                   type="button"
@@ -277,14 +280,16 @@ function ItemNotificacao({
                   Abrir
                 </button>
               ) : null}
-              <button
-                type="button"
-                onClick={alternarLeitura}
-                disabled={carregandoAcao}
-                className="flex w-full items-center px-3 py-2 text-left text-xs font-medium text-slate-600 transition hover:bg-[#F3EAF8] hover:text-[#6F4E7A] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {lida ? "Marcar como não lida" : "Marcar como lida"}
-              </button>
+              <div className="max-h-44 overflow-auto agenda-filtro-scroll">
+                <button
+                  type="button"
+                  onClick={alternarLeitura}
+                  disabled={carregandoAcao}
+                  className="flex w-full items-center px-3 py-2 text-left text-xs font-medium text-slate-600 transition hover:bg-[#F3EAF8] hover:text-[#6F4E7A] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {lida ? "Marcar como não lida" : "Marcar como lida"}
+                </button>
+              </div>
             </div>
           ) : null}
         </div>
@@ -298,6 +303,8 @@ function renderizarSecao(
   notificacoes: Notificacao[],
   onMarcarComoLida: (id: number) => void,
   onMarcarComoNaoLida: (id: number) => void,
+  activeMenuId: number | null,
+  setActiveMenuId: (id: number | null) => void,
   onMarcarTodasComoLidas?: () => void,
   carregandoMarcarTodas?: boolean,
   carregandoAcao?: boolean,
@@ -380,6 +387,8 @@ function renderizarSecao(
                   onMarcarComoLida={onMarcarComoLida}
                   onMarcarComoNaoLida={onMarcarComoNaoLida}
                   carregandoAcao={carregandoAcao}
+                  activeMenuId={activeMenuId}
+                  setActiveMenuId={setActiveMenuId}
                 />
               ))}
             </div>
@@ -399,6 +408,8 @@ export default function ListaNotificacoes({
   carregandoAcao,
   filtroAtivo,
 }: ListaNotificacoesProps) {
+  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+
   const agrupadas = useMemo(
     () => ({
       naoLidas: notificacoes
@@ -442,6 +453,8 @@ export default function ListaNotificacoes({
         agrupadas.naoLidas,
         onMarcarComoLida,
         onMarcarComoNaoLida,
+        activeMenuId,
+        setActiveMenuId,
         onMarcarTodasComoLidas,
         carregandoMarcarTodas,
         carregandoAcao,
@@ -451,6 +464,8 @@ export default function ListaNotificacoes({
         agrupadas.lidas,
         onMarcarComoLida,
         onMarcarComoNaoLida,
+        activeMenuId,
+        setActiveMenuId,
         onMarcarTodasComoLidas,
         carregandoMarcarTodas,
         carregandoAcao,

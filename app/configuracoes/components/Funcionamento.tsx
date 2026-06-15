@@ -155,6 +155,13 @@ export default function Funcionamento({
     };
   }, [podeEditar]);
 
+  // Se usuário não pode administrar, forçar exibição do calendário
+  useEffect(() => {
+    if (!permissoesFuncionamento.podeAdministrar) {
+      setAbaPrincipal("calendario");
+    }
+  }, [permissoesFuncionamento.podeAdministrar]);
+
   const {
     data: dataSemanal,
     isLoading: loadingSemanal,
@@ -685,30 +692,36 @@ export default function Funcionamento({
           </div>
 
           <div className="flex flex-nowrap gap-2 rounded-2xl bg-[#F9F5FF] p-1.5">
-            <button
-              type="button"
-              onClick={() => setAbaPrincipal("semanal")}
-              className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium transition-colors ${
-                abaPrincipal === "semanal"
-                  ? "bg-[#9F64AF] text-white shadow-sm"
-                  : "text-gray-600 hover:bg-white"
-              }`}
-            >
-              <CalendarDays size={14} />
-              Horários de funcionamento
-            </button>
-            <button
-              type="button"
-              onClick={() => setAbaPrincipal("excecoes")}
-              className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium transition-colors ${
-                abaPrincipal === "excecoes"
-                  ? "bg-[#9F64AF] text-white shadow-sm"
-                  : "text-gray-600 hover:bg-white"
-              }`}
-            >
-              <TbCalendarCancel size={14} />
-              Exceções e bloqueios
-            </button>
+            {permissoesFuncionamento.podeAdministrar && (
+              <button
+                type="button"
+                onClick={() => setAbaPrincipal("semanal")}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium transition-colors ${
+                  abaPrincipal === "semanal"
+                    ? "bg-[#9F64AF] text-white shadow-sm"
+                    : "text-gray-600 hover:bg-white"
+                }`}
+              >
+                <CalendarDays size={14} />
+                Horários de funcionamento
+              </button>
+            )}
+
+            {permissoesFuncionamento.podeAdministrar && (
+              <button
+                type="button"
+                onClick={() => setAbaPrincipal("excecoes")}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium transition-colors ${
+                  abaPrincipal === "excecoes"
+                    ? "bg-[#9F64AF] text-white shadow-sm"
+                    : "text-gray-600 hover:bg-white"
+                }`}
+              >
+                <TbCalendarCancel size={14} />
+                Exceções e bloqueios
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setAbaPrincipal("calendario")}
@@ -725,7 +738,7 @@ export default function Funcionamento({
         </div>
 
         <div className="mt-5">
-          {abaPrincipal === "semanal" && (
+          {abaPrincipal === "semanal" && permissoesFuncionamento.podeAdministrar && (
             <div className="space-y-4">
               <FuncionamentoSemanal
                 horarios={horarios}
@@ -805,7 +818,7 @@ export default function Funcionamento({
             </div>
           )}
 
-          {abaPrincipal === "excecoes" && (
+          {abaPrincipal === "excecoes" && permissoesFuncionamento.podeAdministrar && (
             <div className="space-y-4">
               <ExcecoesFuncionamento
                 excecoes={excecoesVisiveis}

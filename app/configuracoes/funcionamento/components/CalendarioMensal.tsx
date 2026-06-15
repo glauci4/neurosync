@@ -20,6 +20,7 @@ interface CalendarioMensalProps {
   excecoes: Excecao[];
   isPsicologo: boolean;
   onDiaClicado?: (data: string) => void;
+  onTitleChange?: (title: string) => void;
 }
 
 export interface CalendarioFuncionamentoApi {
@@ -45,7 +46,7 @@ export type CalendarioMensalHandle = CalendarioFuncionamentoHandle;
 const CalendarioMensal = forwardRef<
   CalendarioFuncionamentoHandle,
   CalendarioMensalProps
->(({ horariosPontuais = [], excecoes, isPsicologo, onDiaClicado }, ref) => {
+>(({ horariosPontuais = [], excecoes, isPsicologo, onDiaClicado, onTitleChange }, ref) => {
   const calendarRef = useRef<FullCalendar | null>(null);
   useImperativeHandle(ref, () => ({
     getApi: () => {
@@ -85,6 +86,14 @@ const CalendarioMensal = forwardRef<
         events={eventos}
         eventDidMount={(arg) => {
           arg.el.title = arg.event.title || "";
+        }}
+        datesSet={(arg) => {
+          // Atualiza título no parent quando a vista muda
+          try {
+            onTitleChange?.(arg.view.title || "");
+          } catch (e) {
+            // ignore
+          }
         }}
         height="auto"
         firstDay={0}

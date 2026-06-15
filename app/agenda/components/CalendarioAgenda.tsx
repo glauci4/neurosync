@@ -16,6 +16,7 @@ import {
 import {
   type AgendaStatus,
   obterAgendaStatusConfig,
+  obterStatusConsultaExibicao,
 } from "../constants/agendaStatusConfig";
 import { dataLocalISO, dataLocalMeioDia } from "../utils/datas";
 import AgendaEventoCard from "./AgendaEventoCard";
@@ -46,6 +47,8 @@ export interface ConsultaAgenda {
   tipo_outro?: string | null;
   observacoes?: string | null;
   fechado_dia?: boolean | number;
+  criado_em?: string;
+  atualizado_em?: string;
 }
 
 export interface CalendarioAgendaHandle {
@@ -200,7 +203,8 @@ const CalendarioAgenda = forwardRef<
       }
 
       const eventosConsultas = consultas.map((consulta) => {
-        const config = obterAgendaStatusConfig(consulta.status);
+        const statusVisual = obterStatusConsultaExibicao(consulta);
+        const config = obterAgendaStatusConfig(statusVisual);
         const fechado = Boolean(consulta.fechado_dia);
         const dataConsulta = dataISO(consulta.data_consulta);
         const horarioInicio = horarioCompleto(consulta.horario_inicio);
@@ -216,7 +220,7 @@ const CalendarioAgenda = forwardRef<
           textColor: fechado ? "#6B7280" : "#FFFFFF",
           classNames: [
             "evento-agenda",
-            `evento-agenda-${consulta.status}`,
+            `evento-agenda-${statusVisual}`,
             fechado ? "evento-agenda-fechado" : "",
           ],
           extendedProps: consulta,
@@ -442,6 +446,7 @@ const CalendarioAgenda = forwardRef<
             }
 
             const consulta = info.event.extendedProps as ConsultaAgenda;
+            const statusVisual = obterStatusConsultaExibicao(consulta);
             const tipoVisualizacao =
               info.view.type === "dayGridMonth"
                 ? "mes"
@@ -454,7 +459,7 @@ const CalendarioAgenda = forwardRef<
                 horario={horaCurta(consulta.horario_inicio)}
                 paciente={consulta.paciente_nome}
                 sala={consulta.sala_nome}
-                status={consulta.status}
+                status={statusVisual}
                 tipoAtendimento={
                   tipoVisualizacao === "mes"
                     ? formatarTipoAtendimento(consulta)
@@ -496,7 +501,9 @@ const CalendarioAgenda = forwardRef<
               return;
             }
             const consulta = info.event.extendedProps as ConsultaAgenda;
-            const config = obterAgendaStatusConfig(consulta.status);
+            const config = obterAgendaStatusConfig(
+              obterStatusConsultaExibicao(consulta),
+            );
             // Tooltip nativo simples para manter o padrão visual sem criar
             // dependência paralela para status da consulta.
             info.el.title = `${config.texto}: ${config.descricao}`;

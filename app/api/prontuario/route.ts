@@ -60,6 +60,15 @@ export async function GET(request: Request) {
               pe.consulta_id, pe.data_registro, pe.tipo_atendimento,
               pe.conteudo, pe.status, pe.assinatura_url, pe.assinado_em,
               pe.finalizado_em, pe.criado_em, pe.atualizado_em,
+              c.data_consulta AS consulta_data_consulta,
+              c.horario_inicio AS consulta_horario_inicio,
+              c.horario_fim AS consulta_horario_fim,
+              s.nome AS consulta_sala_nome,
+              pc.nome AS consulta_psicologo_nome,
+              c.status AS consulta_status,
+              c.tipo_atendimento AS consulta_tipo_atendimento,
+              c.tipo_outro AS consulta_tipo_outro,
+              c.observacoes AS consulta_observacoes,
               (
                 SELECT phe.psicologo_id
                 FROM registro_clinico_historico_edicoes phe
@@ -98,6 +107,12 @@ export async function GET(request: Request) {
        FROM registros_clinicos pe
        INNER JOIN pacientes p ON p.id = pe.paciente_id
        INNER JOIN usuarios u ON u.id = pe.psicologo_id
+       LEFT JOIN consultas c
+         ON c.id = pe.consulta_id
+        AND c.clinica_id = pe.clinica_id
+        AND c.deleted_at IS NULL
+       LEFT JOIN salas s ON s.id = c.sala_id
+       LEFT JOIN usuarios pc ON pc.id = c.psicologo_id
        WHERE ${where}
        ORDER BY pe.data_registro DESC, pe.criado_em DESC`,
       params,

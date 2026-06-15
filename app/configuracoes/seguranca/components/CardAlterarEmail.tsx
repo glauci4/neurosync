@@ -40,6 +40,8 @@ export default function CardAlterarEmail({
   const [erros, setErros] = useState<ErrosEmail>({});
   const [tentouSalvar, setTentouSalvar] = useState(false);
   const [senhaVisivel, setSenhaVisivel] = useState(false);
+  const [novoEmailTouched, setNovoEmailTouched] = useState(false);
+  const [senhaAtualTouched, setSenhaAtualTouched] = useState(false);
 
   const validarCampos = useCallback(() => {
     const novosErros: ErrosEmail = {};
@@ -149,13 +151,15 @@ export default function CardAlterarEmail({
             <input
               id="novo-email"
               type="email"
+              autoComplete="email"
               value={novoEmail}
               onChange={(event) => setNovoEmail(event.target.value)}
+              onBlur={() => setNovoEmailTouched(true)}
               className={`w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#9F64AF] ${
-                erros.novoEmail ? "border-red-500 bg-red-50" : "border-gray-300"
+                (erros.novoEmail && (tentouSalvar || novoEmailTouched)) ? "border-red-500 bg-red-50" : "border-gray-300"
               }`}
             />
-            <ErroCampo mensagem={erros.novoEmail} />
+            {(tentouSalvar || novoEmailTouched) && <ErroCampo mensagem={erros.novoEmail} />}
           </div>
 
           <div>
@@ -169,14 +173,17 @@ export default function CardAlterarEmail({
               <input
                 id="senha-email"
                 type={senhaVisivel ? "text" : "password"}
+                autoComplete="current-password"
                 value={senhaAtual}
                 onChange={(event) => setSenhaAtual(event.target.value)}
+                onBlur={() => setSenhaAtualTouched(true)}
                 className={`w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm text-gray-900 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#9F64AF] ${
-                  erros.senhaAtual
+                  (erros.senhaAtual && (tentouSalvar || senhaAtualTouched))
                     ? "border-red-500 bg-red-50"
                     : "border-gray-300"
                 }`}
               />
+              { (tentouSalvar || senhaAtualTouched) && <ErroCampo mensagem={erros.senhaAtual} /> }
               <button
                 type="button"
                 onClick={() => setSenhaVisivel((atual) => !atual)}
@@ -186,7 +193,6 @@ export default function CardAlterarEmail({
                 {senhaVisivel ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
               </button>
             </div>
-            <ErroCampo mensagem={erros.senhaAtual} />
           </div>
         </div>
 

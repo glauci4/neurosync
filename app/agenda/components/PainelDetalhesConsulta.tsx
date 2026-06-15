@@ -2,10 +2,12 @@
 
 import { motion } from "framer-motion";
 import {
+  AlertCircle,
   CalendarClock,
   CalendarOff,
   CalendarX2,
   Clock,
+  ChevronLeft,
   FileText,
   History,
   MapPin,
@@ -14,25 +16,61 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { LuCalendarCheck, LuCalendarRange } from "react-icons/lu";
 import { toast } from "sonner";
 import {
   type AgendaStatus,
   obterAgendaStatusConfig,
+  obterStatusConsultaExibicao,
 } from "../constants/agendaStatusConfig";
-import { useAtualizarConsulta } from "../hooks/useAgenda";
+import { CHAVE_AGENDA, useAtualizarConsulta } from "../hooks/useAgenda";
 import type { ConsultaAgenda } from "./CalendarioAgenda";
 import ModalConfirmacaoConsulta from "./ModalConfirmacaoConsulta";
+import type { StatusProntuario } from "@/app/prontuario/hooks/useProntuario";
+import { CHAVE_PRONTUARIOS } from "@/app/prontuario/hooks/useProntuario";
 
 interface PainelDetalhesConsultaProps {
   consulta?: ConsultaAgenda | null;
   aberto: boolean;
   onClose: () => void;
+  onVoltar?: () => void;
+  onRegistrarProntuario: (consulta: ConsultaAgenda) => void;
+  onAbrirProntuario: (consulta: ConsultaAgenda) => void;
   onRemarcar: (consulta: ConsultaAgenda) => void;
+  prontuarioStatus?: StatusProntuario | null;
+  mostrarVoltar?: boolean;
 }
 
 type AcaoConfirmacao = "cancelar" | "falta" | "concluir";
+type StatusConsultaOperacional = Exclude<AgendaStatus, "pendente">;
+
+const STATUS_CONSULTA_PRONTUARIO_INICIADO = [
+  "em_andamento",
+  "iniciado",
+  "iniciada",
+  "concluido",
+  "concluida",
+  "realizado",
+  "realizada",
+];
+
+const STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL = [
+  "agendado",
+  "agendada",
+  "remarcado",
+  "remarcada",
+  "pendente",
+];
+
+const STATUS_CONSULTA_PRONTUARIO_BLOQUEADO = [
+  "cancelado",
+  "cancelada",
+  "falta",
+  "excluido",
+  "excluida",
+];
 
 const tipoAtendimentoLabel: Record<ConsultaAgenda["tipo_atendimento"], string> =
   {
@@ -59,6 +97,85 @@ function formatarData(data: string) {
 
 function horaCurta(hora: string) {
   return hora?.slice(0, 5) || "";
+}
+
+function dataHoraPtBr(valor?: string | null) {
+  if (!valor) return "";
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return String(valor);
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(data);
+}
+
+function consultaJaPassou(consulta: {
+  data_consulta: string;
+  horario_fim: string;
+}) {
+  const data = String(consulta.data_consulta).slice(0, 10);
+  const fim = new Date(`${data}T${horaCurta(consulta.horario_fim)}`);
+
+  if (Number.isNaN(fim.getTime())) {
+    return false;
+  }
+
+  return new Date() > fim;
+}
+
+function consultaEstaNoHorarioAtual(consulta: {
+  data_consulta: string;
+  horario_inicio: string;
+  horario_fim: string;
+}) {
+  const data = String(consulta.data_consulta).slice(0, 10);
+  const inicio = new Date(`${data}T${horaCurta(consulta.horario_inicio)}`);
+  const fim = new Date(`${data}T${horaCurta(consulta.horario_fim)}`);
+  const agora = new Date();
+
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+    return false;
+  }
+
+  return agora >= inicio && agora <= fim;
+}
+
+function consultaPermiteRegistroProntuario(consulta: {
+  status: string;
+  data_consulta: string;
+  horario_inicio: string;
+  horario_fim: string;
+}) {
+  const status = consulta.status.trim().toLowerCase();
+  if (STATUS_CONSULTA_PRONTUARIO_INICIADO.includes(status)) return true;
+
+  return (
+    STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status) &&
+    consultaEstaNoHorarioAtual(consulta)
+  );
+}
+
+function toastProntuarioInfo(mensagem: string) {
+  toast.custom(
+    (id) => (
+      <div className="flex w-full max-w-sm items-start gap-2 rounded-2xl border border-[#E5D9F3] bg-[#F6F0FA] px-4 py-3 text-[#2F2436] shadow-lg shadow-[#9F64AF]/10">
+        <AlertCircle size={16} className="mt-0.5 shrink-0 text-[#9F64AF]" />
+        <p className="text-sm leading-5">{mensagem}</p>
+        <button
+          type="button"
+          onClick={() => toast.dismiss(id)}
+          className="ml-auto rounded-full p-1 text-[#9F64AF] transition hover:bg-[#EDE0F5]"
+          aria-label="Fechar aviso"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    ),
+    { duration: 5000 },
+  );
 }
 
 function LinhaDetalhe({
@@ -120,7 +237,32 @@ function AvatarPsicologo({
   );
 }
 
-function LinhaProntuario({ disponivel }: { disponivel: boolean }) {
+function LinhaProntuario({
+  disponivel,
+  statusProntuario,
+  onRegistrarProntuario,
+  onAbrirProntuario,
+}: {
+  disponivel: boolean;
+  statusProntuario?: StatusProntuario | null;
+  onRegistrarProntuario: () => void;
+  onAbrirProntuario: () => void;
+}) {
+  const temProntuario = Boolean(statusProntuario);
+  const assinado = statusProntuario === "assinado";
+  const valorPrincipal = !temProntuario
+    ? "Não registrado"
+    : assinado
+      ? "Assinado digitalmente"
+      : "Registrado";
+  const badge = !temProntuario
+    ? { texto: "Pendente", classe: "border-[#D9BCE8] bg-[#F3EAF8] text-[#5F2D6D]" }
+    : assinado
+      ? { texto: "Assinado", classe: "border-[#D9BCE8] bg-[#F3EAF8] text-[#5F2D6D]" }
+      : { texto: "Finalizado", classe: "border-[#D9BCE8] bg-[#F3EAF8] text-[#5F2D6D]" };
+  const acao = !temProntuario ? onRegistrarProntuario : onAbrirProntuario;
+  const labelAcao = !temProntuario ? "Registrar prontuário" : "Abrir prontuário";
+
   return (
     <div className="flex gap-3 rounded-2xl border border-[#9F64AF]/10 bg-white/70 p-3">
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#F3EAF8] text-[#9F64AF]">
@@ -132,19 +274,25 @@ function LinhaProntuario({ disponivel }: { disponivel: boolean }) {
         </p>
         <div className="mt-0.5 flex flex-wrap items-center gap-2">
           <p className="truncate text-sm font-medium text-gray-700">
-            Não registrado
+            {valorPrincipal}
           </p>
-          <span className="rounded-full border border-[#D9BCE8] bg-[#F3EAF8] px-2 py-0.5 text-[10px] font-semibold text-[#5F2D6D]">
-            Pendente
+          <span
+            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.classe}`}
+          >
+            {badge.texto}
           </span>
         </div>
         <button
           type="button"
-          disabled={!disponivel}
-          title={disponivel ? "Em breve" : "Indisponível"}
-          className="mt-2 inline-flex cursor-not-allowed items-center rounded-lg px-0 text-xs font-semibold text-[#9F64AF] opacity-70"
+          onClick={acao}
+          title={labelAcao}
+          className={`mt-2 inline-flex items-center rounded-lg px-0 text-xs font-semibold transition ${
+            disponivel
+              ? "cursor-pointer text-[#9F64AF] hover:text-[#8B509B]"
+              : "cursor-pointer text-[#9F64AF] opacity-70 hover:text-[#8B509B]"
+          }`}
         >
-          Registrar prontuário
+          {labelAcao}
         </button>
       </div>
     </div>
@@ -158,7 +306,7 @@ function dadosConfirmacao(acao?: AcaoConfirmacao) {
       descricao:
         "A consulta será mantida no histórico, mas deixará de ocupar sala e horário operacional. Após esta ação, você poderá reagendar a consulta se necessário.",
       textoConfirmar: "Cancelar consulta",
-      status: "cancelado" as AgendaStatus,
+      status: "cancelado" as StatusConsultaOperacional,
       toast: "Consulta cancelada",
       variante: "perigo" as const,
     };
@@ -169,7 +317,7 @@ function dadosConfirmacao(acao?: AcaoConfirmacao) {
       descricao:
         "O paciente será marcado como falta nesta consulta. A informação ficará disponível no histórico. Após esta ação, você poderá reagendar a consulta se necessário.",
       textoConfirmar: "Marcar falta",
-      status: "falta" as AgendaStatus,
+      status: "falta" as StatusConsultaOperacional,
       toast: "Paciente marcado como falta",
       variante: "aviso" as const,
     };
@@ -179,7 +327,7 @@ function dadosConfirmacao(acao?: AcaoConfirmacao) {
     descricao:
       "A consulta será marcada como concluída e ficará preparada para integração futura com o prontuário.",
     textoConfirmar: "Concluir consulta",
-    status: "concluido" as AgendaStatus,
+    status: "concluido" as StatusConsultaOperacional,
     toast: "Consulta concluída",
     variante: "sucesso" as const,
   };
@@ -189,14 +337,27 @@ export default function PainelDetalhesConsulta({
   consulta,
   aberto,
   onClose,
+  onVoltar,
+  onRegistrarProntuario,
+  onAbrirProntuario,
+  mostrarVoltar = false,
   onRemarcar,
+  prontuarioStatus,
 }: PainelDetalhesConsultaProps) {
   const [montado, setMontado] = useState(false);
+  const [consultaExibida, setConsultaExibida] = useState<ConsultaAgenda | null>(
+    consulta || null,
+  );
   const [acaoConfirmacao, setAcaoConfirmacao] =
     useState<AcaoConfirmacao | null>(null);
+  const queryClient = useQueryClient();
   const atualizarConsulta = useAtualizarConsulta();
 
   useEffect(() => setMontado(true), []);
+
+  useEffect(() => {
+    setConsultaExibida(consulta || null);
+  }, [consulta]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -211,18 +372,101 @@ export default function PainelDetalhesConsulta({
 
   if (!aberto || !consulta || !montado) return null;
 
-  const config = obterAgendaStatusConfig(consulta.status);
-  const IconeStatus = config.icone;
-  const agendaFechada = Boolean(consulta.fechado_dia);
+  const consultaAtual = consultaExibida || consulta;
+  const statusConsultaAtual = consultaAtual.status.trim().toLowerCase();
+
+  const statusVisual = obterStatusConsultaExibicao(consultaAtual);
+  const configVisual = obterAgendaStatusConfig(statusVisual);
+  const configOperacional = obterAgendaStatusConfig(consultaAtual.status);
+  const IconeStatus = configVisual.icone;
+  const agendaFechada = Boolean(consultaAtual.fechado_dia);
   const podeOperar = !agendaFechada;
   const tipoAtendimento =
-    consulta.tipo_atendimento === "outro" && consulta.tipo_outro
-      ? consulta.tipo_outro
-      : tipoAtendimentoLabel[consulta.tipo_atendimento];
+    consultaAtual.tipo_atendimento === "outro" && consultaAtual.tipo_outro
+      ? consultaAtual.tipo_outro
+      : tipoAtendimentoLabel[consultaAtual.tipo_atendimento];
   const confirmacao = dadosConfirmacao(acaoConfirmacao || "concluir");
   const prontuarioDisponivel =
-    "preparaProntuario" in config.regras &&
-    Boolean(config.regras.preparaProntuario);
+    consultaPermiteRegistroProntuario(consultaAtual);
+
+  const atualizarCachesConsulta = (consultaAtualizada: ConsultaAgenda) => {
+    queryClient.setQueriesData(
+      { queryKey: CHAVE_AGENDA, exact: false },
+      (antigo: unknown) => {
+        if (!antigo || typeof antigo !== "object") return antigo;
+
+        const dados = antigo as {
+          data?: ConsultaAgenda[] | { data?: ConsultaAgenda[] };
+        };
+
+        if (Array.isArray(dados.data)) {
+          return {
+            ...dados,
+            data: dados.data.map((item) =>
+              item.id === consultaAtualizada.id ? consultaAtualizada : item,
+            ),
+          };
+        }
+
+        if (
+          dados.data &&
+          typeof dados.data === "object" &&
+          Array.isArray(dados.data.data)
+        ) {
+          return {
+            ...dados,
+            data: {
+              ...dados.data,
+              data: dados.data.data.map((item) =>
+                item.id === consultaAtualizada.id ? consultaAtualizada : item,
+              ),
+            },
+          };
+        }
+
+        return antigo;
+      },
+    );
+
+    queryClient.invalidateQueries({ queryKey: CHAVE_AGENDA });
+    queryClient.invalidateQueries({ queryKey: CHAVE_PRONTUARIOS });
+  };
+
+  const registrarProntuario = () => {
+    const status = statusConsultaAtual;
+
+    if (consultaPermiteRegistroProntuario(consultaAtual)) {
+      onClose();
+      onRegistrarProntuario(consultaAtual);
+      return;
+    }
+
+    if (
+      STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status) &&
+      consultaJaPassou(consulta)
+    ) {
+      toastProntuarioInfo(
+        "O horário desta consulta já passou. Marque a consulta como concluída para registrar o prontuário.",
+      );
+      return;
+    }
+
+    if (STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status)) {
+      toastProntuarioInfo("Este atendimento ainda não foi iniciado.");
+      return;
+    }
+
+    if (STATUS_CONSULTA_PRONTUARIO_BLOQUEADO.includes(status)) {
+      toastProntuarioInfo(
+        "Não é possível registrar o prontuário para esta consulta.",
+      );
+      return;
+    }
+
+    toastProntuarioInfo(
+      "Marque a consulta como concluída para registrar o prontuário.",
+    );
+  };
 
   const confirmarMudancaStatus = async () => {
     if (!acaoConfirmacao) return;
@@ -233,12 +477,17 @@ export default function PainelDetalhesConsulta({
       // Mudanças críticas de status passam por confirmação e pela mutation
       // central da Agenda, mantendo cache e regras futuras de prontuário.
       await atualizarConsulta.mutateAsync({
-        id: consulta.id,
+        id: consultaAtual.id,
         dados: { status: dados.status },
       });
+      const consultaAtualizada = {
+        ...consultaAtual,
+        status: dados.status,
+      } as ConsultaAgenda;
+      setConsultaExibida(consultaAtualizada);
+      atualizarCachesConsulta(consultaAtualizada);
       toast.success(dados.toast);
       setAcaoConfirmacao(null);
-      onClose();
     } catch (error) {
       const mensagem =
         error instanceof Error ? error.message : "Erro ao atualizar consulta";
@@ -262,6 +511,17 @@ export default function PainelDetalhesConsulta({
           transition={{ duration: 0.22 }}
           className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#9F64AF]/20 bg-white shadow-2xl"
         >
+          {mostrarVoltar && onVoltar && (
+            <button
+              type="button"
+              onClick={onVoltar}
+              className="absolute top-4 left-4 z-10 rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+              aria-label="Voltar para consultas do dia"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onClose}
@@ -271,7 +531,11 @@ export default function PainelDetalhesConsulta({
             <X size={20} />
           </button>
 
-          <div className="border-[#9F64AF]/10 border-b px-6 pt-6 pb-5 pr-14">
+          <div
+            className={`border-[#9F64AF]/10 border-b px-6 pt-6 pb-5 ${
+              mostrarVoltar ? "pl-14 pr-14" : "pr-14"
+            }`}
+          >
             <div className="flex items-start gap-3">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F3EAF8] text-[#9F64AF]">
                 <LuCalendarRange size={22} />
@@ -285,11 +549,11 @@ export default function PainelDetalhesConsulta({
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <span
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition ${config.badge}`}
-                    title={config.descricao}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition ${configVisual.badge}`}
+                    title={configVisual.descricao}
                   >
                     <IconeStatus size={14} />
-                    {config.texto}
+                    {configVisual.texto}
                   </span>
                   {agendaFechada && (
                     <span className="rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">
@@ -310,27 +574,27 @@ export default function PainelDetalhesConsulta({
                 <LinhaDetalhe
                   icone={User}
                   label="Paciente"
-                  valor={consulta.paciente_nome}
+                  valor={consultaAtual.paciente_nome}
                 />
                 <AvatarPsicologo
-                  nome={consulta.psicologo_nome}
-                  avatarUrl={consulta.psicologo_avatar_url}
+                  nome={consultaAtual.psicologo_nome}
+                  avatarUrl={consultaAtual.psicologo_avatar_url}
                 />
                 <LinhaDetalhe
                   icone={MapPin}
                   label="Sala"
-                  valor={consulta.sala_nome}
+                  valor={consultaAtual.sala_nome}
                 />
                 <LinhaDetalhe
                   icone={CalendarClock}
                   label="Data"
-                  valor={formatarData(consulta.data_consulta)}
+                  valor={formatarData(consultaAtual.data_consulta)}
                 />
                 <LinhaDetalhe
                   icone={Clock}
                   label="Horário"
-                  valor={`${horaCurta(consulta.horario_inicio)} às ${horaCurta(
-                    consulta.horario_fim,
+                  valor={`${horaCurta(consultaAtual.horario_inicio)} às ${horaCurta(
+                    consultaAtual.horario_fim,
                   )}`}
                 />
                 <LinhaDetalhe
@@ -338,7 +602,12 @@ export default function PainelDetalhesConsulta({
                   label="Tipo de atendimento"
                   valor={tipoAtendimento}
                 />
-                <LinhaProntuario disponivel={prontuarioDisponivel} />
+                <LinhaProntuario
+                  disponivel={prontuarioDisponivel}
+                  statusProntuario={prontuarioStatus}
+                  onRegistrarProntuario={registrarProntuario}
+                  onAbrirProntuario={() => onAbrirProntuario(consultaAtual)}
+                />
               </div>
 
               <div className="mt-4 rounded-2xl border border-[#9F64AF]/10 bg-[#FBF7FF] p-4">
@@ -346,7 +615,7 @@ export default function PainelDetalhesConsulta({
                   Observações
                 </p>
                 <p className="mt-2 text-sm leading-6 text-gray-600">
-                  {consulta.observacoes || "Nenhuma observação registrada."}
+                  {consultaAtual.observacoes || "Nenhuma observação registrada."}
                 </p>
               </div>
             </section>
@@ -358,54 +627,90 @@ export default function PainelDetalhesConsulta({
                 </span>
                 <div>
                   <h3 className="text-sm font-semibold text-gray-800">
-                    Histórico da consulta
+                    Histórico operacional da consulta
                   </h3>
                   <p className="text-xs text-gray-500">
-                    Alterações e movimentações operacionais.
+                    Registro das alterações operacionais desta consulta.
                   </p>
                 </div>
               </div>
-              <div className="rounded-xl border border-dashed border-[#D9BCE8] bg-[#FBF7FF] p-4">
-                <div className="flex items-start gap-3 text-sm text-gray-500">
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#9F64AF]">
-                    <History size={14} />
-                  </span>
-                  <div>
-                    <p className="font-medium text-gray-700">
-                      Nenhuma movimentação registrada para esta consulta.
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Alterações futuras aparecerão aqui em formato de linha do
-                      tempo.
-                    </p>
+              {consultaAtual.criado_em || consultaAtual.atualizado_em ? (
+                <div className="space-y-2">
+                  {consultaAtual.criado_em && (
+                    <div className="flex items-start gap-3 rounded-xl border border-[#9F64AF]/10 bg-[#FBF7FF] p-3">
+                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#9F64AF]">
+                        <History size={14} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">
+                          Consulta criada
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {dataHoraPtBr(consultaAtual.criado_em)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {consultaAtual.atualizado_em &&
+                    consultaAtual.atualizado_em !== consultaAtual.criado_em && (
+                      <div className="flex items-start gap-3 rounded-xl border border-[#9F64AF]/10 bg-[#FBF7FF] p-3">
+                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#9F64AF]">
+                          <History size={14} />
+                        </span>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">
+                            Consulta atualizada
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {dataHoraPtBr(consultaAtual.atualizado_em)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-[#D9BCE8] bg-[#FBF7FF] p-4">
+                  <div className="flex items-start gap-3 text-sm text-gray-500">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#9F64AF]">
+                      <History size={14} />
+                    </span>
+                    <div>
+                      <p className="font-medium text-gray-700">
+                        Nenhuma movimentação registrada para esta consulta.
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Alterações futuras aparecerão aqui em formato de linha
+                        do tempo.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </section>
 
             {podeOperar &&
-            (config.regras.podeEditar ||
-              config.regras.podeRemarcar ||
-              config.regras.podeCancelar ||
-              config.regras.podeMarcarFalta ||
-              config.regras.podeConcluir) ? (
+            (configOperacional.regras.podeEditar ||
+              configOperacional.regras.podeRemarcar ||
+              configOperacional.regras.podeCancelar ||
+              configOperacional.regras.podeMarcarFalta ||
+              configOperacional.regras.podeConcluir) ? (
               <div className="mt-6 space-y-2 border-t border-gray-100 pt-5">
                 <p className="text-xs font-semibold text-gray-400 uppercase">
                   Ações
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  {(consulta.status === "agendado" ||
-                    consulta.status === "remarcado") && (
+                  {(statusConsultaAtual === "agendado" ||
+                    statusConsultaAtual === "remarcado") && (
                     <button
                       type="button"
-                      onClick={() => onRemarcar(consulta)}
+                      onClick={() => onRemarcar(consultaAtual)}
                       className="inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-[#9F64AF]/20 bg-[#9F64AF]/20 px-3.5 text-xs font-medium leading-none text-[#9F64AF] transition hover:bg-[#9F64AF] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <CalendarClock size={14} className="shrink-0" />
                       Reagendar consulta
                     </button>
                   )}
-                  {config.regras.podeCancelar && (
+                  {configOperacional.regras.podeCancelar && (
                     <button
                       type="button"
                       onClick={() => setAcaoConfirmacao("cancelar")}
@@ -415,7 +720,7 @@ export default function PainelDetalhesConsulta({
                       Cancelar
                     </button>
                   )}
-                  {config.regras.podeMarcarFalta && (
+                  {configOperacional.regras.podeMarcarFalta && (
                     <button
                       type="button"
                       onClick={() => setAcaoConfirmacao("falta")}
@@ -425,7 +730,7 @@ export default function PainelDetalhesConsulta({
                       Marcar falta
                     </button>
                   )}
-                  {config.regras.podeConcluir && (
+                  {configOperacional.regras.podeConcluir && (
                     <button
                       type="button"
                       onClick={() => setAcaoConfirmacao("concluir")}

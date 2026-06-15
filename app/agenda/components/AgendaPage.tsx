@@ -3,6 +3,7 @@
 import { Plus } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { RxGear } from "react-icons/rx";
 import { useExcecoes } from "@/app/configuracoes/funcionamento/hooks/useExcecoes";
 import { useFuncionamento } from "@/app/configuracoes/funcionamento/hooks/useFuncionamento";
@@ -25,6 +26,8 @@ import ModalConsultasDia from "./ModalConsultasDia";
 import ModalNovaConsulta from "./ModalNovaConsulta";
 import PainelDetalhesConsulta from "./PainelDetalhesConsulta";
 import ToolbarAgenda, { type VisualizacaoAgenda } from "./ToolbarAgenda";
+import { useProntuarios } from "@/app/prontuario/hooks/useProntuario";
+import type { RegistroClinico } from "@/app/prontuario/hooks/useProntuario";
 
 function mapearOpcoes(
   itens?: Array<{ id: number; nome: string; tipo?: string }>,
@@ -328,6 +331,9 @@ export default function AgendaPage() {
   >("criar");
   const [consultaSelecionada, setConsultaSelecionada] =
     useState<ConsultaAgenda | null>(null);
+  const [origemDetalhesConsulta, setOrigemDetalhesConsulta] = useState<
+    "consultas-dia" | null
+  >(null);
   const [consultasDiaSelecionado, setConsultasDiaSelecionado] = useState<{
     data: string;
     consultas: ConsultaAgenda[];
@@ -349,6 +355,8 @@ export default function AgendaPage() {
   >();
   const fluxoIniciarAtendimentoRef = useRef<number | null>(null);
   const consultaSalvaNoFluxoRef = useRef(false);
+  // Ref para evitar toasts duplicados ao clicar rapidamente no mesmo dia
+  const ultimoToastDataRef = useRef<string | null>(null);
 
   const filtros = useMemo(
     () => filtrosPorQueryParams(new URLSearchParams(searchParams.toString())),
@@ -358,8 +366,19 @@ export default function AgendaPage() {
   const { data: filtrosData } = useFiltrosAgenda();
   const { query: funcionamentoQuery } = useFuncionamento();
   const { query: excecoesQuery } = useExcecoes();
+  const { data: prontuariosData } = useProntuarios();
 
   const consultas = (agendaData?.data || []) as ConsultaAgenda[];
+  const prontuarioConsultaSelecionada = useMemo<
+    RegistroClinico | null
+  >(() => {
+    const evolucoes = prontuariosData?.data || [];
+    return (
+      evolucoes.find(
+        (evolucao) => evolucao.consulta_id === consultaSelecionada?.id,
+      ) || null
+    );
+  }, [consultaSelecionada?.id, prontuariosData?.data]);
   const horariosFuncionamento = funcionamentoQuery.data || [];
   const excecoesFuncionamento = excecoesQuery.data || [];
   const filtrosDisponiveis = filtrosData?.data;
@@ -692,6 +711,32 @@ export default function AgendaPage() {
     consultaSalvaNoFluxoRef.current = false;
   }, []);
 
+  const abrirProntuarioConsulta = useCallback(
+    (consulta: ConsultaAgenda) => {
+      setConsultaSelecionada(null);
+      setOrigemDetalhesConsulta(null);
+
+      const params = new URLSearchParams({
+        abrir_novo_registro: "1",
+        paciente_id: String(consulta.paciente_id),
+        consulta_id: String(consulta.id),
+        data_registro: consulta.data_consulta,
+        tipo_atendimento: consulta.tipo_atendimento,
+        status: consulta.status,
+        horario_inicio: consulta.horario_inicio,
+        horario_fim: consulta.horario_fim,
+      });
+
+      router.push(`/prontuario?${params.toString()}`);
+    },
+    [router],
+  );
+
+  const fecharDetalhesConsulta = useCallback(() => {
+    setConsultaSelecionada(null);
+    setOrigemDetalhesConsulta(null);
+  }, []);
+
   useEffect(() => {
     if (searchParams.get("abrir_nova_consulta") !== "1") return;
 
@@ -891,9 +936,30 @@ export default function AgendaPage() {
                   }}
                   onSelecionarHorario={abrirModalConsulta}
                   onSelecionarConsulta={setConsultaSelecionada}
-                  onSelecionarDiaComConsultas={(params) =>
-                    setConsultasDiaSelecionado(params)
-                  }
+                  onSelecionarDiaComConsultas={(params) => {
+                    const hoje = dataHojeISO();
+
+                    // Se houver consultas no dia, sempre abrir o modal de consultas do dia
+                    if (params?.consultas && params.consultas.length > 0) {
+                      setConsultasDiaSelecionado(params);
+                      return;
+                    }
+
+                    // Se for data passada sem consultas -> mostrar toast e não abrir modal
+                    if (params?.data && params.data < hoje) {
+                      // Evita toasts duplicados quando o handler for chamado duas vezes seguidas
+                      if (ultimoToastDataRef.current === params.data) return;
+                      ultimoToastDataRef.current = params.data;
+                      toast.error("Não é possível agendar consulta em uma data anterior.");
+                      setTimeout(() => {
+                        ultimoToastDataRef.current = null;
+                      }, 1500);
+                      return;
+                    }
+
+                    // Data atual ou futura sem consultas -> abrir modal Nova Consulta com data preenchida
+                    abrirModalConsulta({ data_consulta: params?.data });
+                  } }
                 />
               )}
             </section>
@@ -920,13 +986,16 @@ export default function AgendaPage() {
         data={consultasDiaSelecionado?.data || ""}
         consultas={consultasDiaSelecionado?.consultas || []}
         onClose={() => setConsultasDiaSelecionado(null)}
+        atalhosBloqueados={Boolean(
+          consultaSelecionada && origemDetalhesConsulta === "consultas-dia",
+        )}
         onNovaConsulta={(data) =>
           abrirModalConsulta({
             data_consulta: data,
           })
         }
         onSelecionarConsulta={(consulta) => {
-          setConsultasDiaSelecionado(null);
+          setOrigemDetalhesConsulta("consultas-dia");
           setConsultaSelecionada(consulta);
         }}
       />
@@ -934,8 +1003,19 @@ export default function AgendaPage() {
       <PainelDetalhesConsulta
         aberto={Boolean(consultaSelecionada)}
         consulta={consultaSelecionada}
-        onClose={() => setConsultaSelecionada(null)}
+        mostrarVoltar={origemDetalhesConsulta === "consultas-dia"}
+        onClose={fecharDetalhesConsulta}
+        onVoltar={fecharDetalhesConsulta}
+        onRegistrarProntuario={abrirProntuarioConsulta}
+        onAbrirProntuario={() => {
+          if (prontuarioConsultaSelecionada) {
+            router.push(`/prontuario?registro_id=${prontuarioConsultaSelecionada.id}`);
+            return;
+          }
+          router.push("/prontuario");
+        }}
         onRemarcar={(consulta) => abrirEdicaoConsulta(consulta, "remarcar")}
+        prontuarioStatus={prontuarioConsultaSelecionada?.status || null}
       />
     </div>
   );

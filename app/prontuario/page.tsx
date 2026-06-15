@@ -34,12 +34,16 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MdErrorOutline } from "react-icons/md";
 import { toast } from "sonner";
 import { useSidebar } from "@/app/context/SidebarContext";
+import PainelDetalhesConsulta from "@/app/agenda/components/PainelDetalhesConsulta";
+import type { ConsultaAgenda } from "@/app/agenda/components/CalendarioAgenda";
+import { obterStatusConsultaExibicao } from "@/app/agenda/constants/agendaStatusConfig";
 import Sidebar from "@/app/inicio/components/Sidebar";
 import { useAutenticacao } from "@/hooks/useAutenticacao";
 import { useListarPacientes } from "@/hooks/useListarPacientes";
@@ -49,8 +53,9 @@ import {
   ModalVisualizarRegistroClinico,
   TimelineRegistros,
 } from "./components/TimelineRegistros";
+import RegistroClinicoPrintLayout from "./components/RegistroClinicoPrintLayout";
 import { gerarRegistroClinicoPdf } from "./pdf/gerarRegistroClinicoPdf";
-import { imprimirRegistroClinico } from "./print/imprimirRegistroClinico";
+import { useImprimirRegistroClinico } from "./hooks/useImprimirRegistroClinico";
 import {
   type RegistroClinico,
   type RegistroClinicoPayload,
@@ -184,6 +189,27 @@ function consultaPermiteRegistroProntuario(consulta: {
     STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status) &&
     consultaEstaNoHorarioAtual(consulta)
   );
+}
+
+function mensagemBloqueioProntuario(consulta: {
+  status: string;
+  data_consulta: string;
+  horario_inicio: string;
+  horario_fim: string;
+}) {
+  const status = consulta.status.trim().toLowerCase();
+  if (
+    STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status) &&
+    consultaJaPassou(consulta)
+  ) {
+    return "O horário desta consulta já passou. Marque a consulta como concluída para registrar o prontuário.";
+  }
+
+  if (STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status)) {
+    return "Este atendimento ainda não foi iniciado.";
+  }
+
+  return "Marque a consulta como concluída para registrar o prontuário.";
 }
 
 function toastProntuarioInfo(mensagem: string) {
@@ -601,12 +627,22 @@ function ModalEvolucao({
   pacientes,
   evolucoes,
   evolucao,
+  aberturaInicial,
   onClose,
 }: {
   aberto: boolean;
   pacientes: PacienteOpcao[];
   evolucoes: RegistroClinico[];
   evolucao?: RegistroClinico | null;
+  aberturaInicial?: {
+    paciente_id: string;
+    consulta_id: string;
+    data_registro: string;
+    tipo_atendimento: TipoAtendimentoProntuario | "";
+    status: string;
+    horario_inicio: string;
+    horario_fim: string;
+  } | null;
   onClose: () => void;
 }) {
   const [montado, setMontado] = useState(false);
@@ -628,6 +664,44 @@ function ModalEvolucao({
     useConsultasPacienteProntuario(pacienteIdSelecionado || undefined);
   const salvando = criarEvolucao.isPending || atualizarEvolucao.isPending;
   const editando = Boolean(evolucao?.id);
+  const consultas = useMemo(
+    () =>
+      (consultasData?.data || [])
+        .filter((consulta) => consultaSelecionavelProntuario(consulta))
+        .sort((a, b) =>
+          `${b.data_consulta}T${b.horario_inicio}`.localeCompare(
+            `${a.data_consulta}T${a.horario_inicio}`,
+          ),
+        ),
+    [consultasData?.data],
+  );
+  const pacienteSelecionado = pacientes.find(
+    (paciente) => paciente.id === pacienteIdSelecionado,
+  );
+  const consultaSelecionada = consultas.find(
+    (consulta) => String(consulta.id) === formulario.consulta_id,
+  );
+  const consultaSelecionadaInicial =
+    aberturaInicial?.consulta_id &&
+    formulario.consulta_id === aberturaInicial.consulta_id &&
+    aberturaInicial.status
+      ? {
+          id: Number(aberturaInicial.consulta_id),
+          paciente_id: Number(aberturaInicial.paciente_id),
+          status: aberturaInicial.status,
+          data_consulta: aberturaInicial.data_registro,
+          horario_inicio: aberturaInicial.horario_inicio,
+          horario_fim: aberturaInicial.horario_fim,
+          tipo_atendimento: aberturaInicial.tipo_atendimento || "outro",
+          tipo_outro: null,
+        }
+      : null;
+  const consultaSelecionadaEfetiva =
+    consultaSelecionada || consultaSelecionadaInicial;
+  const prontuarioConsultaBloqueada =
+    Boolean(evolucao?.id) &&
+    consultaSelecionadaEfetiva !== null &&
+    !consultaPermiteRegistroProntuario(consultaSelecionadaEfetiva);
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -636,6 +710,7 @@ function ModalEvolucao({
     ],
     content: formulario.conteudo || "",
     immediatelyRender: false,
+    editable: !prontuarioConsultaBloqueada,
     editorProps: {
       attributes: {
         class:
@@ -648,6 +723,8 @@ function ModalEvolucao({
   });
   void versaoToolbar;
 
+  const avisoBloqueioConsultado = useRef(false);
+
   useEffect(() => setMontado(true), []);
 
   useEffect(() => {
@@ -655,14 +732,39 @@ function ModalEvolucao({
     setRegistroAberto(Boolean(evolucao?.id));
     setConfirmarFinalizacao(false);
     setErros({});
+    if (evolucao) {
+      setFormulario({
+        paciente_id: String(evolucao.paciente_id),
+        consulta_id: String(evolucao.consulta_id || ""),
+        data_registro: evolucao.data_registro?.slice(0, 10) || "",
+        tipo_atendimento: evolucao.tipo_atendimento || "",
+        conteudo: evolucao.conteudo || "",
+      });
+      return;
+    }
+
     setFormulario({
-      paciente_id: evolucao?.paciente_id ? String(evolucao.paciente_id) : "",
-      consulta_id: evolucao?.consulta_id ? String(evolucao.consulta_id) : "",
-      data_registro: evolucao?.data_registro?.slice(0, 10) || "",
-      tipo_atendimento: evolucao?.tipo_atendimento || "",
-      conteudo: evolucao?.conteudo || "",
+      paciente_id: aberturaInicial?.paciente_id || "",
+      consulta_id: aberturaInicial?.consulta_id || "",
+      data_registro: aberturaInicial?.data_registro || "",
+      tipo_atendimento: aberturaInicial?.tipo_atendimento || "",
+      conteudo: "",
     });
-  }, [aberto, evolucao]);
+  }, [aberto, aberturaInicial, evolucao]);
+
+  useEffect(() => {
+    if (!aberto || !prontuarioConsultaBloqueada || !consultaSelecionadaEfetiva) {
+      avisoBloqueioConsultado.current = false;
+      return;
+    }
+
+    if (avisoBloqueioConsultado.current) return;
+
+    toastProntuarioInfo(
+      mensagemBloqueioProntuario(consultaSelecionadaEfetiva),
+    );
+    avisoBloqueioConsultado.current = true;
+  }, [aberto, prontuarioConsultaBloqueada, consultaSelecionadaEfetiva]);
 
   useEffect(() => {
     if (!aberto || !editor) return;
@@ -690,23 +792,6 @@ function ModalEvolucao({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [aberto, onClose]);
 
-  const consultas = useMemo(
-    () =>
-      (consultasData?.data || [])
-        .filter((consulta) => consultaSelecionavelProntuario(consulta))
-        .sort((a, b) =>
-          `${b.data_consulta}T${b.horario_inicio}`.localeCompare(
-            `${a.data_consulta}T${a.horario_inicio}`,
-          ),
-        ),
-    [consultasData?.data],
-  );
-  const pacienteSelecionado = pacientes.find(
-    (paciente) => paciente.id === pacienteIdSelecionado,
-  );
-  const consultaSelecionada = consultas.find(
-    (consulta) => String(consulta.id) === formulario.consulta_id,
-  );
   const ultimaConsulta = consultas[0];
   const atualizarCampo = (campo: keyof typeof formulario, valor: string) => {
     setFormulario((atual) => ({ ...atual, [campo]: valor }));
@@ -785,7 +870,8 @@ function ModalEvolucao({
       formulario.consulta_id &&
       !consultas.some(
         (consulta) => String(consulta.id) === formulario.consulta_id,
-      )
+      ) &&
+      !consultaSelecionadaEfetiva
     ) {
       novosErros.consulta_id = "Consulta vinculada inválida";
     }
@@ -797,11 +883,11 @@ function ModalEvolucao({
         novosErros.conteudo = erroConteudo;
       }
     }
-    const consultaVinculavelSelecionada = Boolean(consultaSelecionada);
+    const consultaVinculavelEfetiva = Boolean(consultaSelecionadaEfetiva);
     if (pacienteSelecionado?.ativo === false) {
       novosErros.paciente_id = "Paciente não encontrado ou inativo";
     }
-    if (pacienteSelecionado && !consultaVinculavelSelecionada) {
+    if (pacienteSelecionado && !consultaVinculavelEfetiva) {
       novosErros.consulta_id =
         "Selecione uma consulta vinculada válida para criar o registro clínico.";
       if (!formulario.consulta_id) {
@@ -811,8 +897,8 @@ function ModalEvolucao({
     }
     if (
       validarPermissaoConsulta &&
-      consultaSelecionada &&
-      !consultaPermiteRegistroProntuario(consultaSelecionada)
+      consultaSelecionadaEfetiva &&
+      !consultaPermiteRegistroProntuario(consultaSelecionadaEfetiva)
     ) {
       novosErros.consulta_id =
         "Marque a consulta como concluída para registrar o prontuário.";
@@ -829,13 +915,13 @@ function ModalEvolucao({
     if (!formularioValido) return;
 
     if (
-      consultaSelecionada &&
-      !consultaPermiteRegistroProntuario(consultaSelecionada)
+      consultaSelecionadaEfetiva &&
+      !consultaPermiteRegistroProntuario(consultaSelecionadaEfetiva)
     ) {
-      const status = consultaSelecionada.status.trim().toLowerCase();
+      const status = consultaSelecionadaEfetiva.status.trim().toLowerCase();
       if (
         STATUS_CONSULTA_PRONTUARIO_HORARIO_ATUAL.includes(status) &&
-        consultaJaPassou(consultaSelecionada)
+        consultaJaPassou(consultaSelecionadaEfetiva)
       ) {
         toastProntuarioInfo(
           "O horário desta consulta já passou. Marque a consulta como concluída para registrar o prontuário.",
@@ -857,6 +943,14 @@ function ModalEvolucao({
   };
 
   const salvar = async (finalizar: boolean) => {
+    if (prontuarioConsultaBloqueada) {
+      if (!consultaSelecionadaEfetiva) return;
+      toastProntuarioInfo(
+        mensagemBloqueioProntuario(consultaSelecionadaEfetiva),
+      );
+      return;
+    }
+
     if (!validar(finalizar)) return;
 
     const conteudoEditor = editor?.getHTML() || formulario.conteudo;
@@ -914,7 +1008,7 @@ function ModalEvolucao({
     descricao: `${consulta.horario_inicio?.slice(0, 5)}-${consulta.horario_fim?.slice(
       0,
       5,
-    )} · ${consulta.psicologo_nome} · ${consulta.status}`,
+    )} · ${consulta.psicologo_nome} · ${obterStatusConsultaExibicao(consulta)}`,
   }));
   const tipoAtendimentoSelecionado = formulario.tipo_atendimento
     ? tipoAtendimentoLabel(
@@ -1321,7 +1415,7 @@ function ModalEvolucao({
                   </button>
                   <button
                     type="button"
-                    disabled={salvando}
+                    disabled={salvando || prontuarioConsultaBloqueada}
                     onClick={() => salvar(false)}
                     className="rounded-xl border border-[#9F64AF]/20 bg-white px-4 py-2.5 text-sm font-medium text-[#9F64AF] transition hover:bg-[#F3EAF8] disabled:opacity-60"
                   >
@@ -1329,8 +1423,17 @@ function ModalEvolucao({
                   </button>
                   <button
                     type="button"
-                    disabled={salvando}
+                    disabled={salvando || prontuarioConsultaBloqueada}
                     onClick={() => {
+                      if (prontuarioConsultaBloqueada) {
+                        if (!consultaSelecionadaEfetiva) {
+                          return;
+                        }
+                        toastProntuarioInfo(
+                          mensagemBloqueioProntuario(consultaSelecionadaEfetiva),
+                        );
+                        return;
+                      }
                       if (validar(true)) setConfirmarFinalizacao(true);
                     }}
                     className="rounded-xl bg-[#9F64AF] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#8B509B] disabled:opacity-60"
@@ -1381,17 +1484,33 @@ function ModalEvolucao({
 
 export default function ProntuarioPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { usuario, carregando, fazerLogout } = useAutenticacao();
   const { isCollapsed } = useSidebar();
   const [busca, setBusca] = useState("");
   const [filtrosProntuario, setFiltrosProntuario] =
     useState<EstadoFiltrosProntuario>({});
   const [modalAberto, setModalAberto] = useState(false);
+  const [aberturaInicialRegistro, setAberturaInicialRegistro] = useState<{
+    paciente_id: string;
+    consulta_id: string;
+    data_registro: string;
+    tipo_atendimento: TipoAtendimentoProntuario | "";
+    status: string;
+    horario_inicio: string;
+    horario_fim: string;
+  } | null>(null);
   const [evolucaoEdicao, setEvolucaoEdicao] = useState<RegistroClinico | null>(
     null,
   );
   const [evolucaoVisualizacao, setEvolucaoVisualizacao] =
     useState<RegistroClinico | null>(null);
+  const [evolucaoVisualizacaoRetorno, setEvolucaoVisualizacaoRetorno] =
+    useState<RegistroClinico | null>(null);
+  const [consultaVisualizacao, setConsultaVisualizacao] =
+    useState<ConsultaAgenda | null>(null);
+  const { printRef, registro, imprimirRegistro } =
+    useImprimirRegistroClinico();
   const { data: pacientesData } = useListarPacientes({
     visibilidade: "ativo",
     limit: 100,
@@ -1514,6 +1633,79 @@ export default function ProntuarioPage() {
     }
   }, [carregando, router, usuario]);
 
+  useEffect(() => {
+    if (searchParams.get("abrir_novo_registro") !== "1") return;
+
+    const pacienteId = String(searchParams.get("paciente_id") || "");
+    const consultaId = String(searchParams.get("consulta_id") || "");
+    const dataRegistro = String(searchParams.get("data_registro") || "");
+    const tipoAtendimento = String(
+      searchParams.get("tipo_atendimento") || "",
+    ) as TipoAtendimentoProntuario | "";
+    const status = String(searchParams.get("status") || "");
+    const horarioInicio = String(searchParams.get("horario_inicio") || "");
+    const horarioFim = String(searchParams.get("horario_fim") || "");
+
+    if (
+      !pacienteId ||
+      !consultaId ||
+      !dataRegistro ||
+      !tipoAtendimento ||
+      !status ||
+      !horarioInicio ||
+      !horarioFim
+    ) {
+      return;
+    }
+
+    setEvolucaoEdicao(null);
+    setAberturaInicialRegistro({
+      paciente_id: pacienteId,
+      consulta_id: consultaId,
+      data_registro: dataRegistro,
+      tipo_atendimento: tipoAtendimento,
+      status,
+      horario_inicio: horarioInicio,
+      horario_fim: horarioFim,
+    });
+    setModalAberto(true);
+
+    router.replace("/prontuario");
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    const registroId = Number(searchParams.get("registro_id") || 0);
+    if (!registroId || !evolucoesBase.length) return;
+
+    const registro = evolucoesBase.find((item) => item.id === registroId);
+    if (!registro) return;
+
+    setModalAberto(false);
+    setEvolucaoEdicao(null);
+    setEvolucaoVisualizacao(registro);
+    router.replace("/prontuario");
+  }, [evolucoesBase, router, searchParams]);
+
+  const gerarPdfRegistroClinico = useCallback(
+    async (evolucao: RegistroClinico) => {
+      try {
+        await gerarRegistroClinicoPdf(evolucao);
+        toast.success("PDF gerado com sucesso");
+      } catch (error) {
+        console.error("Erro ao gerar PDF do registro clínico:", error);
+        toast.error("Não foi possível gerar o PDF");
+      }
+    },
+    [],
+  );
+
+  const imprimirRegistroClinicoVisualizacao = useCallback(
+    (evolucao: RegistroClinico) => {
+      imprimirRegistro(evolucao);
+    },
+    [imprimirRegistro],
+  );
+
   if (carregando || !usuario || usuario.perfil_id !== 2) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#F3EAF8] to-[#E1D4F0]">
@@ -1547,7 +1739,48 @@ export default function ProntuarioPage() {
   const temFiltroOuBuscaAtivo =
     Boolean(busca.trim()) || Object.values(filtrosProntuario).some(Boolean);
 
+  const abrirConsultaVinculada = (evolucao: RegistroClinico) => {
+    const dataConsulta = evolucao.consulta_data_consulta;
+    const horarioInicio = evolucao.consulta_horario_inicio;
+    const horarioFim = evolucao.consulta_horario_fim;
+    const status = evolucao.consulta_status;
+    const tipoAtendimentoConsulta =
+      evolucao.consulta_tipo_atendimento || evolucao.tipo_atendimento;
+
+    if (
+      !evolucao.consulta_id ||
+      !dataConsulta ||
+      !horarioInicio ||
+      !horarioFim ||
+      !status
+    ) {
+      return;
+    }
+
+    setEvolucaoVisualizacaoRetorno(evolucaoVisualizacao);
+    setConsultaVisualizacao({
+      id: Number(evolucao.consulta_id),
+      paciente_id: evolucao.paciente_id,
+      paciente_nome: evolucao.paciente_nome,
+      psicologo_id: evolucao.psicologo_id,
+      psicologo_nome: evolucao.consulta_psicologo_nome || evolucao.psicologo_nome,
+      psicologo_avatar_url: null,
+      sala_id: 0,
+      sala_nome: evolucao.consulta_sala_nome || "-",
+      status: status as ConsultaAgenda["status"],
+      data_consulta: dataConsulta,
+      horario_inicio: horarioInicio,
+      horario_fim: horarioFim,
+      tipo_atendimento: tipoAtendimentoConsulta as ConsultaAgenda["tipo_atendimento"],
+      tipo_outro: evolucao.consulta_tipo_outro || null,
+      observacoes: evolucao.consulta_observacoes || null,
+      fechado_dia: false,
+    });
+    setEvolucaoVisualizacao(null);
+  };
+
   const abrirNovo = () => {
+    setAberturaInicialRegistro(null);
     setEvolucaoEdicao(null);
     setModalAberto(true);
   };
@@ -1594,31 +1827,6 @@ export default function ProntuarioPage() {
       );
     }
   };
-
-  const gerarPdfRegistroClinico = useCallback(
-    async (evolucao: RegistroClinico) => {
-      try {
-        await gerarRegistroClinicoPdf(evolucao);
-        toast.success("PDF gerado com sucesso");
-      } catch (error) {
-        console.error("Erro ao gerar PDF do registro clínico:", error);
-        toast.error("Não foi possível gerar o PDF");
-      }
-    },
-    [],
-  );
-
-  const imprimirRegistroClinicoVisualizacao = useCallback(
-    (evolucao: RegistroClinico) => {
-      try {
-        imprimirRegistroClinico(evolucao);
-      } catch (error) {
-        console.error("Erro ao imprimir registro clínico:", error);
-        toast.error("Não foi possível abrir a impressão");
-      }
-    },
-    [],
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F3EAF8] to-[#E1D4F0]">
@@ -1757,17 +1965,23 @@ export default function ProntuarioPage() {
         pacientes={pacientes}
         evolucoes={evolucoesBase}
         evolucao={evolucaoEdicao}
+        aberturaInicial={aberturaInicialRegistro}
         onClose={() => {
           setModalAberto(false);
           setEvolucaoEdicao(null);
+          setAberturaInicialRegistro(null);
         }}
       />
 
       <ModalVisualizarRegistroClinico
         evolucao={evolucaoVisualizacao}
-        onClose={() => setEvolucaoVisualizacao(null)}
+        onClose={() => {
+          setEvolucaoVisualizacao(null);
+          setEvolucaoVisualizacaoRetorno(null);
+        }}
         onEditar={(item) => {
           setEvolucaoVisualizacao(null);
+          setEvolucaoVisualizacaoRetorno(null);
           setEvolucaoEdicao(item);
           setModalAberto(true);
         }}
@@ -1775,7 +1989,35 @@ export default function ProntuarioPage() {
         onAssinar={executarAssinatura}
         onGerarPdf={gerarPdfRegistroClinico}
         onImprimir={imprimirRegistroClinicoVisualizacao}
+        onVerDetalhesConsulta={abrirConsultaVinculada}
       />
+
+      <PainelDetalhesConsulta
+        aberto={Boolean(consultaVisualizacao)}
+        consulta={consultaVisualizacao}
+        onClose={() => {
+          setConsultaVisualizacao(null);
+          if (evolucaoVisualizacaoRetorno) {
+            setEvolucaoVisualizacao(evolucaoVisualizacaoRetorno);
+            setEvolucaoVisualizacaoRetorno(null);
+          }
+        }}
+        onVoltar={() => {
+          setConsultaVisualizacao(null);
+          if (evolucaoVisualizacaoRetorno) {
+            setEvolucaoVisualizacao(evolucaoVisualizacaoRetorno);
+            setEvolucaoVisualizacaoRetorno(null);
+          }
+        }}
+        onRegistrarProntuario={() => undefined}
+        onAbrirProntuario={() => undefined}
+        onRemarcar={() => undefined}
+        mostrarVoltar={false}
+      />
+
+      <div ref={printRef}>
+        <RegistroClinicoPrintLayout registro={registro} />
+      </div>
     </div>
   );
 }

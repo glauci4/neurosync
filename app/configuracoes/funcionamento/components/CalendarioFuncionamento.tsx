@@ -5,7 +5,7 @@
 "use client";
 
 import { CalendarDays } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import type { Excecao, Horario } from "../types";
 import CalendarioMensal, {
   type CalendarioFuncionamentoHandle,
@@ -42,7 +42,19 @@ export default function CalendarioFuncionamento({
   const handleNext = () => calendarRef.current?.getApi()?.next();
   const handleToday = () => calendarRef.current?.getApi()?.today();
   // Título dinâmico (mês/ano ou semana) obtido do calendário
-  const title = calendarRef.current?.getApi()?.view?.title || "";
+  const [title, setTitle] = useState<string>(
+    calendarRef.current?.getApi()?.view?.title || "",
+  );
+
+  // Sincroniza título inicial e ao trocar de view
+  useEffect(() => {
+    try {
+      const current = calendarRef.current?.getApi()?.view?.title;
+      if (current) setTitle(current);
+    } catch (e) {
+      // ignore
+    }
+  }, [view]);
 
   return (
     <section
@@ -86,15 +98,17 @@ export default function CalendarioFuncionamento({
             horariosPontuais={horariosPontuais}
             excecoes={excecoes}
             isPsicologo={isPsicologo}
-          />
+          onTitleChange={setTitle}
+        />
         ) : (
-          <CalendarioSemanal
-            ref={calendarRef}
-            horarios={horarios}
-            horariosPontuais={horariosPontuais}
-            excecoes={excecoes}
-            isPsicologo={isPsicologo}
-          />
+        <CalendarioSemanal
+          ref={calendarRef}
+          horarios={horarios}
+          horariosPontuais={horariosPontuais}
+          excecoes={excecoes}
+          isPsicologo={isPsicologo}
+          onTitleChange={setTitle}
+        />
         )}
       </div>
 

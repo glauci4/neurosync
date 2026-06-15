@@ -42,12 +42,16 @@ function CampoSenha({
   valor,
   erro,
   onChange,
+  onBlur,
+  autoComplete,
 }: {
   id: string;
   label: string;
   valor: string;
   erro?: string;
   onChange: (valor: string) => void;
+  onBlur?: () => void;
+  autoComplete?: string;
 }) {
   const [visivel, setVisivel] = useState(false);
 
@@ -65,6 +69,8 @@ function CampoSenha({
           type={visivel ? "text" : "password"}
           value={valor}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
+          autoComplete={autoComplete}
           className={`w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm text-gray-900 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#9F64AF] ${
             erro ? "border-red-500 bg-red-50" : "border-gray-300"
           }`}
@@ -90,6 +96,9 @@ export default function CardAlterarSenha() {
   const [confirmarNovaSenha, setConfirmarNovaSenha] = useState("");
   const [erros, setErros] = useState<ErrosSenha>({});
   const [tentouSalvar, setTentouSalvar] = useState(false);
+  const [senhaAtualTouched, setSenhaAtualTouched] = useState(false);
+  const [novaSenhaTouched, setNovaSenhaTouched] = useState(false);
+  const [confirmarNovaSenhaTouched, setConfirmarNovaSenhaTouched] = useState(false);
 
   const validarCampos = useCallback(() => {
     const novosErros: ErrosSenha = {};
@@ -115,14 +124,14 @@ export default function CardAlterarSenha() {
 
   useEffect(() => {
     const deveValidar =
-      tentouSalvar || senhaAtual || novaSenha || confirmarNovaSenha;
+      tentouSalvar || senhaAtualTouched || novaSenhaTouched || confirmarNovaSenhaTouched || senhaAtual || novaSenha || confirmarNovaSenha;
     if (!deveValidar) {
       setErros({});
       return;
     }
 
     setErros(validarCampos());
-  }, [tentouSalvar, senhaAtual, novaSenha, confirmarNovaSenha, validarCampos]);
+  }, [tentouSalvar, senhaAtual, novaSenha, confirmarNovaSenha, validarCampos, senhaAtualTouched, novaSenhaTouched, confirmarNovaSenhaTouched]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -175,8 +184,10 @@ export default function CardAlterarSenha() {
             id="senha-atual"
             label="Senha atual"
             valor={senhaAtual}
-            erro={erros.senhaAtual}
-            onChange={setSenhaAtual}
+            erro={(erros.senhaAtual && (tentouSalvar || senhaAtualTouched)) ? erros.senhaAtual : undefined}
+            onChange={(v) => setSenhaAtual(v)}
+            onBlur={() => setSenhaAtualTouched(true)}
+            autoComplete="current-password"
           />
 
           <div>
@@ -184,8 +195,10 @@ export default function CardAlterarSenha() {
               id="nova-senha"
               label="Nova senha"
               valor={novaSenha}
-              erro={erros.novaSenha}
-              onChange={setNovaSenha}
+              erro={(erros.novaSenha && (tentouSalvar || novaSenhaTouched)) ? erros.novaSenha : undefined}
+              onChange={(v) => setNovaSenha(v)}
+              onBlur={() => setNovaSenhaTouched(true)}
+              autoComplete="new-password"
             />
             <p className="mt-1 text-xs text-gray-400">
               A senha deve ter no mínimo 8 caracteres, conter letras maiúsculas,
@@ -197,8 +210,10 @@ export default function CardAlterarSenha() {
             id="confirmar-nova-senha"
             label="Confirmar nova senha"
             valor={confirmarNovaSenha}
-            erro={erros.confirmarNovaSenha}
-            onChange={setConfirmarNovaSenha}
+            erro={(erros.confirmarNovaSenha && (tentouSalvar || confirmarNovaSenhaTouched)) ? erros.confirmarNovaSenha : undefined}
+            onChange={(v) => setConfirmarNovaSenha(v)}
+            onBlur={() => setConfirmarNovaSenhaTouched(true)}
+            autoComplete="new-password"
           />
         </div>
 

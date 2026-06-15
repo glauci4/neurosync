@@ -6,25 +6,38 @@
 import { motion } from "framer-motion";
 import {
   Archive,
+  CalendarClock,
   ClipboardList,
+  Clock,
   IdCard,
+  MapPin,
   PenLine,
   RotateCcw,
   Smartphone,
   Trash2,
   User,
+  ChevronRight,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BiTransfer } from "react-icons/bi";
 import { HiOutlineClipboardDocumentList } from "react-icons/hi2";
 import { toast } from "sonner";
+import {
+  obterAgendaStatusConfig,
+  obterStatusConsultaExibicao,
+} from "@/app/agenda/constants/agendaStatusConfig";
+import { useProntuarios } from "@/app/prontuario/hooks/useProntuario";
+import type { ConsultaAgenda } from "@/app/agenda/components/CalendarioAgenda";
+import PainelDetalhesConsulta from "@/app/agenda/components/PainelDetalhesConsulta";
 import { useFiltrosAgenda } from "@/app/agenda/hooks/useAgenda";
 import { useAutenticacao } from "@/hooks/useAutenticacao";
 import { useDefinirResponsavelPaciente } from "@/hooks/useDefinirResponsavelPaciente";
 import { usePacientePorId } from "@/hooks/usePacientePorId";
 import { formatarCPF, formatarTelefone } from "@/lib/utils";
 import PsicologoCombobox from "./PsicologoCombobox";
+import HistoricoConsultasPacienteModal from "./HistoricoConsultasPacienteModal";
 import TransferirAcompanhamentoModal from "./TransferirAcompanhamentoModal";
 
 interface DetalhesPacienteModalProps {
@@ -38,6 +51,19 @@ interface DetalhesPacienteModalProps {
   onInativar: () => void;
   onReativarCadastro?: () => void;
   onExcluir: () => void;
+  onAbrirDetalhesConsultaHistorico?: (
+    consulta: {
+      id: number;
+      data_consulta: string;
+      horario_inicio: string;
+      horario_fim: string;
+      status: string;
+      tipo_atendimento: string;
+      tipo_outro?: string | null;
+      sala_nome?: string | null;
+      psicologo_nome?: string | null;
+    },
+  ) => void;
 }
 
 // Componentes auxiliares para manter o código organizado e reutilizável
@@ -102,7 +128,9 @@ export default function DetalhesPacienteModal({
   onInativar,
   onReativarCadastro,
   onExcluir,
+  onAbrirDetalhesConsultaHistorico,
 }: DetalhesPacienteModalProps) {
+  const router = useRouter();
   const { usuario } = useAutenticacao();
   const {
     data: paciente,
@@ -110,9 +138,14 @@ export default function DetalhesPacienteModal({
     error,
   } = usePacientePorId(isOpen ? pacienteId : null);
   const { data: filtrosAgenda } = useFiltrosAgenda();
+  const { data: prontuariosData } = useProntuarios();
   const [transferirAberto, setTransferirAberto] = useState(false);
   const [definirResponsavelAberto, setDefinirResponsavelAberto] =
     useState(false);
+  const [historicoConsultasAberto, setHistoricoConsultasAberto] =
+    useState(false);
+  const [consultaHistoricoSelecionada, setConsultaHistoricoSelecionada] =
+    useState<ConsultaAgenda | null>(null);
   const [
     psicologoResponsavelSelecionadoId,
     setPsicologoResponsavelSelecionadoId,
@@ -247,6 +280,80 @@ export default function DetalhesPacienteModal({
       label: psicologo.nome,
     })) || [];
 
+  const historicoConsultas = (paciente as {
+    historico_consultas?: Array<{
+      id: number;
+      data_consulta: string;
+      horario_inicio: string;
+      horario_fim: string;
+      status: string;
+      tipo_atendimento: string;
+      tipo_outro?: string | null;
+      sala_nome?: string | null;
+      psicologo_nome?: string | null;
+    }>;
+    historico_consultas_resumo?: {
+      total: number;
+      concluidas: number;
+      faltas: number;
+      canceladas: number;
+      proximas: number;
+    };
+  })?.historico_consultas || [];
+  const historicoResumo =
+    (paciente as {
+      historico_consultas_resumo?: {
+        total: number;
+        concluidas: number;
+        faltas: number;
+        canceladas: number;
+        proximas: number;
+      };
+    })?.historico_consultas_resumo || {
+      total: 0,
+      concluidas: 0,
+      faltas: 0,
+      canceladas: 0,
+      proximas: 0,
+    };
+
+  const prontuarioConsultaSelecionada = useMemo(
+    () =>
+      prontuariosData?.data?.find(
+        (item) => item.consulta_id === consultaHistoricoSelecionada?.id,
+      ) || null,
+    [consultaHistoricoSelecionada?.id, prontuariosData?.data],
+  );
+
+  const formatarDataHistorico = (data?: string) => {
+    const valor = new Date(`${String(data || "").slice(0, 10)}T00:00:00`);
+    if (Number.isNaN(valor.getTime())) return String(data || "-");
+    return new Intl.DateTimeFormat("pt-BR").format(valor);
+  };
+
+  const horaCurta = (hora?: string | null) =>
+    String(hora || "").slice(0, 5) || "-";
+
+  const tipoHistorico = (consulta: {
+    tipo_atendimento: string;
+    tipo_outro?: string | null;
+  }) => {
+    if (consulta.tipo_atendimento === "outro" && consulta.tipo_outro) {
+      return consulta.tipo_outro;
+    }
+    const mapa: Record<string, string> = {
+      triagem: "Triagem",
+      psicoterapia: "Psicoterapia",
+      devolutiva: "Devolutiva",
+      avaliacao: "Avaliação",
+      orientacao: "Orientação",
+      retorno: "Retorno",
+      alta: "Alta",
+      outro: "Outro",
+    };
+    return mapa[consulta.tipo_atendimento] || consulta.tipo_atendimento;
+  };
+
   const fecharDefinirResponsavel = () => {
     setDefinirResponsavelAberto(false);
     setPsicologoResponsavelSelecionadoId("");
@@ -273,6 +380,26 @@ export default function DetalhesPacienteModal({
         erro instanceof Error ? erro.message : "Erro ao definir responsável",
       );
     }
+  };
+
+  const abrirProntuarioConsulta = (consulta: ConsultaAgenda) => {
+    const params = new URLSearchParams({
+      abrir_novo_registro: "1",
+      paciente_id: String(consulta.paciente_id),
+      consulta_id: String(consulta.id),
+      data_registro: consulta.data_consulta,
+      tipo_atendimento: consulta.tipo_atendimento,
+      status: consulta.status,
+      horario_inicio: consulta.horario_inicio,
+      horario_fim: consulta.horario_fim,
+    });
+
+    router.push(`/prontuario?${params.toString()}`);
+  };
+
+  const voltarHistoricoConsultas = () => {
+    setConsultaHistoricoSelecionada(null);
+    setHistoricoConsultasAberto(true);
   };
 
   return (
@@ -464,6 +591,72 @@ export default function DetalhesPacienteModal({
                     </>
                   )}
                 </div>
+              </div>
+            </Section>
+
+            <Section icon={CalendarClock} title="Histórico de consultas">
+              <div className="space-y-3 rounded-2xl border border-[#E5D9F3] bg-[#FAF7FC] px-4 py-4">
+                <div className="space-y-2">
+                  {historicoConsultas.length === 0 ? (
+                    <p className="text-sm text-slate-500">
+                      Nenhuma consulta registrada para este paciente.
+                    </p>
+                  ) : (
+                    historicoConsultas.slice(0, 3).map((consulta) => {
+                      const statusConsulta = obterAgendaStatusConfig(
+                        obterStatusConsultaExibicao({
+                          status: consulta.status,
+                          data_consulta: consulta.data_consulta,
+                          horario_inicio: consulta.horario_inicio,
+                          horario_fim: consulta.horario_fim,
+                        }),
+                      );
+
+                      return (
+                        <article
+                          key={consulta.id}
+                          className="rounded-2xl border border-white/80 bg-white px-3 py-3 shadow-sm"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-800">
+                                {formatarDataHistorico(consulta.data_consulta)} ·{" "}
+                                {horaCurta(consulta.horario_inicio)} às{" "}
+                                {horaCurta(consulta.horario_fim)}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {tipoHistorico(consulta)} ·{" "}
+                                {statusConsulta.texto}
+                              </p>
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {consulta.psicologo_nome || "Sem psicólogo"}
+                            </div>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                            <span className="inline-flex items-center gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 text-[#9F64AF]" />
+                              {consulta.sala_nome || "Sala não informada"}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-[#9F64AF]" />
+                              Consulta operacional
+                            </span>
+                          </div>
+                        </article>
+                      );
+                    })
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setHistoricoConsultasAberto(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-[#9F64AF]/20 bg-white px-3 py-2 text-xs font-medium text-[#9F64AF] shadow-sm transition hover:border-[#9F64AF] hover:bg-[#F9F4FC]"
+                >
+                  Ver histórico completo
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
               </div>
             </Section>
 
@@ -788,6 +981,48 @@ export default function DetalhesPacienteModal({
           </motion.div>
         </div>
       )}
+
+      {paciente && (
+        <HistoricoConsultasPacienteModal
+          aberto={historicoConsultasAberto}
+          pacienteNome={paciente.nome}
+          consultas={historicoConsultas}
+          onClose={() => setHistoricoConsultasAberto(false)}
+          onVerDetalhesConsulta={(consulta) => {
+            setHistoricoConsultasAberto(false);
+            setConsultaHistoricoSelecionada({
+              id: consulta.id,
+              paciente_id: paciente.id,
+              paciente_nome: paciente.nome,
+              psicologo_id: 0,
+              psicologo_nome: consulta.psicologo_nome || "Não informado",
+              psicologo_avatar_url: null,
+              sala_id: 0,
+              sala_nome: consulta.sala_nome || "Não informada",
+              status: consulta.status as ConsultaAgenda["status"],
+              data_consulta: consulta.data_consulta,
+              horario_inicio: consulta.horario_inicio,
+              horario_fim: consulta.horario_fim,
+              tipo_atendimento: consulta.tipo_atendimento as ConsultaAgenda["tipo_atendimento"],
+              tipo_outro: consulta.tipo_outro || null,
+              observacoes: null,
+              fechado_dia: false,
+            });
+          }}
+        />
+      )}
+
+      <PainelDetalhesConsulta
+        aberto={Boolean(consultaHistoricoSelecionada)}
+        consulta={consultaHistoricoSelecionada}
+        mostrarVoltar={Boolean(consultaHistoricoSelecionada)}
+        onClose={() => setConsultaHistoricoSelecionada(null)}
+        onVoltar={voltarHistoricoConsultas}
+        onRegistrarProntuario={abrirProntuarioConsulta}
+        onAbrirProntuario={() => router.push("/prontuario")}
+        onRemarcar={() => undefined}
+        prontuarioStatus={prontuarioConsultaSelecionada?.status || null}
+      />
     </div>
   );
 }

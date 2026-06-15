@@ -7,6 +7,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
+  CalendarClock,
   FileCheck,
   FileText,
   PenLine,
@@ -17,6 +18,10 @@ import {
 import Image from "next/image";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import {
+  obterAgendaStatusConfig,
+  obterStatusConsultaExibicao,
+} from "@/app/agenda/constants/agendaStatusConfig";
 import type {
   RegistroClinico,
   StatusProntuario,
@@ -113,6 +118,11 @@ function formatarHoraClinica(data?: string | null) {
   }).format(date);
 }
 
+function formatarHoraCurta(hora?: string | null) {
+  if (!hora) return "-";
+  return String(hora).slice(0, 5) || "-";
+}
+
 function tipoAtendimentoLabel(tipo: TipoAtendimentoProntuario) {
   return TIPOS_ATENDIMENTO.find((opcao) => opcao.valor === tipo)?.label || tipo;
 }
@@ -136,6 +146,93 @@ function ConteudoEvolucao({ conteudo }: { conteudo: string }) {
   });
 
   return <EditorContent editor={editorLeitura} />;
+}
+
+function BlocoConsultaVinculada({
+  evolucao,
+  onVerDetalhesConsulta,
+}: {
+  evolucao: RegistroClinico;
+  onVerDetalhesConsulta: (evolucao: RegistroClinico) => void;
+}) {
+  const statusConsulta = evolucao.consulta_status
+    ? obterAgendaStatusConfig(
+        obterStatusConsultaExibicao({
+          status: evolucao.consulta_status,
+          data_consulta: evolucao.consulta_data_consulta,
+          horario_inicio: evolucao.consulta_horario_inicio,
+          horario_fim: evolucao.consulta_horario_fim,
+        }),
+      )
+    : null;
+  const tipoConsulta =
+    evolucao.consulta_tipo_atendimento === "outro" &&
+    evolucao.consulta_tipo_outro
+      ? evolucao.consulta_tipo_outro
+      : evolucao.consulta_tipo_atendimento
+        ? tipoAtendimentoLabel(evolucao.consulta_tipo_atendimento)
+        : "-";
+
+  return (
+    <section className="rounded-2xl border border-[#D9BCE8] bg-[#FBF7FF] px-4 py-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase text-gray-400">
+            Consulta vinculada
+          </p>
+          <p className="mt-1 truncate text-sm font-semibold text-gray-800">
+            {evolucao.consulta_data_consulta
+              ? formatarDataClinica(evolucao.consulta_data_consulta)
+              : "Não registrada"}
+          </p>
+        </div>
+        {statusConsulta && (
+          <span
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusConsulta.badge}`}
+          >
+            <statusConsulta.icone size={12} />
+            {statusConsulta.texto}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarClock size={13} className="shrink-0 text-[#9F64AF]" />
+          {formatarHoraCurta(evolucao.consulta_horario_inicio)} às{" "}
+          {formatarHoraCurta(evolucao.consulta_horario_fim)}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <FileText size={13} className="shrink-0 text-[#9F64AF]" />
+          {tipoConsulta}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <PenLine size={13} className="shrink-0 text-[#9F64AF]" />
+          {evolucao.consulta_psicologo_nome || "-"}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarDays size={13} className="shrink-0 text-[#9F64AF]" />
+          {evolucao.consulta_sala_nome || "-"}
+        </span>
+      </div>
+
+      {evolucao.consulta_observacoes && (
+        <p className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500">
+          {evolucao.consulta_observacoes}
+        </p>
+      )}
+
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          onClick={() => onVerDetalhesConsulta(evolucao)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#9F64AF]/20 bg-white px-3 py-1.5 text-xs font-semibold text-[#9F64AF] transition hover:bg-[#F3EAF8]"
+        >
+          Ver detalhes da consulta
+        </button>
+      </div>
+    </section>
+  );
 }
 
 function CardRegistroClinico({
@@ -211,6 +308,7 @@ export function ModalVisualizarRegistroClinico({
   onAssinar,
   onGerarPdf,
   onImprimir,
+  onVerDetalhesConsulta,
 }: {
   evolucao: RegistroClinico | null;
   onClose: () => void;
@@ -219,6 +317,7 @@ export function ModalVisualizarRegistroClinico({
   onAssinar: (evolucao: RegistroClinico) => void;
   onGerarPdf: (evolucao: RegistroClinico) => void;
   onImprimir: (evolucao: RegistroClinico) => void;
+  onVerDetalhesConsulta: (evolucao: RegistroClinico) => void;
 }) {
   const montado = typeof document !== "undefined";
 
@@ -365,6 +464,13 @@ export function ModalVisualizarRegistroClinico({
                 </div>
               )}
             </div>
+          )}
+
+          {Number(evolucao.consulta_id) > 0 && (
+            <BlocoConsultaVinculada
+              evolucao={evolucao}
+              onVerDetalhesConsulta={onVerDetalhesConsulta}
+            />
           )}
         </div>
 

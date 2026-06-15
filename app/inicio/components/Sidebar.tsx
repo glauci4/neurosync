@@ -3,8 +3,6 @@
 
 "use client";
 
-// Biblioteca para animações suaves
-import { motion } from "framer-motion";
 // Ícones utilizados na sidebar
 import {
   BarChart3, // Ícone para Relatórios
@@ -218,14 +216,11 @@ export default function Sidebar({ perfilId, onLogout, usuario }: SidebarProps) {
   };
 
   return (
-    <motion.aside
-      initial={{ x: -100, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.3 }}
+    <aside
       className={`
         fixed left-0 top-0 h-screen ${sidebarWidth}
         bg-gradient-to-b from-[#D6C4E8] to-[#9F64AF] 
-        shadow-xl flex flex-col z-10 transition-all duration-300
+        shadow-xl flex flex-col z-10
       `}
     >
       {/* HEADER DA SIDEBAR (Logo e botão de recolher) */}
@@ -490,6 +485,6 @@ export default function Sidebar({ perfilId, onLogout, usuario }: SidebarProps) {
           <span className={`text-sm ${textClass}`}>Sair</span>
         </button>
       </div>
-    </motion.aside>
+    </aside>
   );
 }

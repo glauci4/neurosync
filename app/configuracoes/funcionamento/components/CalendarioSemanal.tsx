@@ -5,7 +5,7 @@
 "use client";
 
 import type { KeyboardEvent } from "react";
-import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useState, useEffect } from "react";
 import { toast } from "sonner";
 import type { Excecao, Horario } from "../types";
 import {
@@ -21,6 +21,7 @@ interface CalendarioSemanalProps {
   excecoes: Excecao[];
   isPsicologo: boolean;
   onDiaClicado?: (data: string) => void;
+  onTitleChange?: (title: string) => void;
 }
 
 function obterSemana(dataRef: Date) {
@@ -50,7 +51,7 @@ export type CalendarioSemanalHandle = CalendarioFuncionamentoHandle;
 const CalendarioSemanal = forwardRef<
   CalendarioFuncionamentoHandle,
   CalendarioSemanalProps
->(({ horariosPontuais = [], excecoes, isPsicologo, onDiaClicado }, ref) => {
+>(({ horariosPontuais = [], excecoes, isPsicologo, onDiaClicado, onTitleChange }, ref) => {
   const [dataAtual, setDataAtual] = useState(new Date());
   const semana = useMemo(() => obterSemana(dataAtual), [dataAtual]);
   const eventosCalendario = useMemo(
@@ -71,6 +72,20 @@ const CalendarioSemanal = forwardRef<
   };
 
   const hoje = () => setDataAtual(new Date());
+
+  // Notifica parent quando a dataAtual muda, para atualizar o título
+  useEffect(() => {
+    try {
+      onTitleChange?.(
+        dataAtual.toLocaleDateString("pt-BR", {
+          month: "long",
+          year: "numeric",
+        }) || "",
+      );
+    } catch (e) {
+      // ignore
+    }
+  }, [dataAtual, onTitleChange]);
 
   useImperativeHandle(ref, () => ({
     getApi: () => ({

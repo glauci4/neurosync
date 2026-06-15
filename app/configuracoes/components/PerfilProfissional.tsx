@@ -315,16 +315,26 @@ function ModalEditarPerfil({
     atualizarAssinatura.isPending ||
     removerAssinatura.isPending;
 
+  const validarNomeCampo = (valor: string) => {
+    const trimmed = valor.trim();
+    if (!trimmed) return "Nome completo é obrigatório";
+    if (trimmed.length < 3) return "Nome completo deve ter pelo menos 3 caracteres";
+    // Permitir apenas letras (incluindo acentos) e espaços
+    // 
+    // Uso de Unicode property \p{L} para todas as letras
+    const regex = /^[\p{L} ]+$/u;
+    if (!regex.test(trimmed))
+      return "Nome só pode conter letras e espaços (sem números ou caracteres especiais).";
+    return undefined;
+  };
+
   const validarFormulario = () => {
     const novosErros: ErrosFormulario = {};
     const nomeTrim = nome.trim();
     const telefoneNumeros = limparTelefone(telefone);
 
-    if (!nomeTrim) {
-      novosErros.nome = "Nome completo é obrigatório";
-    } else if (nomeTrim.length < 3) {
-      novosErros.nome = "Nome completo deve ter pelo menos 3 caracteres";
-    }
+    const erroNome = validarNomeCampo(nomeTrim);
+    if (erroNome) novosErros.nome = erroNome;
 
     if (
       isPsicologo &&
@@ -576,7 +586,19 @@ function ModalEditarPerfil({
               <input
                 id="nome-perfil"
                 value={nome}
-                onChange={(evento) => setNome(evento.target.value)}
+                onChange={(evento) => {
+                  const v = evento.target.value;
+                  setNome(v);
+                  // validação em tempo real para feedback imediato se já houver erro
+                  if (erros.nome) {
+                    const campoErro = validarNomeCampo(v);
+                    setErros((prev) => ({ ...prev, nome: campoErro }));
+                  }
+                }}
+                onBlur={() => {
+                  const campoErro = validarNomeCampo(nome);
+                  setErros((prev) => ({ ...prev, nome: campoErro }));
+                }}
                 className={`w-full rounded-xl border bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-transparent focus:ring-2 focus:ring-[#9F64AF] ${
                   erros.nome ? "border-rose-300" : "border-gray-300"
                 }`}

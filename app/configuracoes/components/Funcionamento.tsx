@@ -14,7 +14,7 @@ import {
   Loader2,
   Save,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RxGear } from "react-icons/rx";
 import { TbCalendarCancel } from "react-icons/tb";
 import { toast } from "sonner";
@@ -36,7 +36,7 @@ import type {
   Horario,
 } from "../funcionamento/types";
 import {
-  calcularEstatisticasFuncionamento,
+  calcularEstatisticasFuncionamento, calcularEstatisticasCombinadas,
   clonarHorarios,
   DIAS_CURTOS,
   DIAS_UTEIS,
@@ -102,6 +102,12 @@ export default function Funcionamento({
   const [abaPrincipal, setAbaPrincipal] = useState<
     "semanal" | "calendario" | "excecoes"
   >("semanal");
+
+  // Mês/ano atualmente exibidos no calendário (usado para filtrar aplicações pontuais)
+  const [mesExibido, setMesExibido] = useState<{ month: number; year: number }>(() => {
+    const now = new Date();
+    return { month: now.getMonth() + 1, year: now.getFullYear() };
+  });
   const [alteracoesPendentes, setAlteracoesPendentes] = useState(false);
   const [bloqueado, setBloqueado] = useState(false);
   const [excecoesRascunho, setExcecoesRascunho] = useState<
@@ -134,7 +140,7 @@ export default function Funcionamento({
         return {
           titulo: "Horários de funcionamento",
           descricao:
-            "Configure a rotina semanal da clínica e aplique os horários ao calendário operacional quando necessário.",
+            "Configure o funcionamento da clínica e acompanhe os períodos disponíveis para atendimento.",
         };
     }
   }, [abaPrincipal]);
@@ -201,9 +207,25 @@ export default function Funcionamento({
     setHorarios(defaults);
     setHorariosOriginais(clonarHorarios(defaults));
     setAlteracoesPendentes(false);
-    setBloqueado(false);
+    // Não forçar bloqueio aqui: bloqueio passa a ser controlado por aplicações pontuais
     primeiraCarga.current = false;
   }, [dataSemanal]);
+
+  // Se houver aplicações pontuais (funcionamento mensal) para o período carregado,
+  // sinaliza bloqueio da edição semanal e exibe aviso informativo.
+  // Bloqueia edição semanal apenas quando houver aplicações pontuais no mês exibido
+  const pontuaisNoMes = useMemo(() => {
+    if (!horariosPontuais || horariosPontuais.length === 0) return [] as typeof horariosPontuais;
+    return horariosPontuais.filter((h) => {
+      if (!h.data_especifica) return false;
+      const [y, m] = h.data_especifica.split("-").map(Number);
+      return y === mesExibido.year && m === mesExibido.month;
+    });
+  }, [horariosPontuais, mesExibido]);
+
+  useEffect(() => {
+    setBloqueado(pontuaisNoMes.length > 0);
+  }, [pontuaisNoMes.length]);
 
   // =========================================================================
   // Detecção de pendências
@@ -412,48 +434,6 @@ export default function Funcionamento({
     toast.success("Horários limpos", TOAST_NEUROSYNC);
   };
 
-  const duplicarHorarios = () => {
-    const diaRef = horarios.find(temHorarioPreenchido);
-    if (!diaRef) {
-      toast.error(
-        "Preencha os horários de pelo menos um dia ativo antes de duplicar",
-      );
-      return;
-    }
-    const todosIguais = horarios
-      .filter((h) => h.ativo)
-      .every(
-        (h) =>
-          h.hora_inicio === diaRef.hora_inicio &&
-          h.hora_fim === diaRef.hora_fim &&
-          h.intervalo_inicio === diaRef.intervalo_inicio &&
-          h.intervalo_fim === diaRef.intervalo_fim,
-      );
-    if (todosIguais) {
-      toast.info(
-        "Os horários já estão duplicados em todos os dias ativos.",
-        TOAST_NEUROSYNC,
-      );
-      return;
-    }
-    setHorarios((prev) =>
-      prev.map((h) =>
-        h.ativo
-          ? {
-              ...h,
-              hora_inicio: diaRef.hora_inicio,
-              hora_fim: diaRef.hora_fim,
-              intervalo_inicio: diaRef.intervalo_inicio,
-              intervalo_fim: diaRef.intervalo_fim,
-            }
-          : h,
-      ),
-    );
-    toast.success(
-      "Horários duplicados para todos os dias ativos",
-      TOAST_NEUROSYNC,
-    );
-  };
 
   // Aplicação mensal: materializa a configuração semanal nas datas selecionadas
   // sem transformar a semana-modelo em recorrência infinita.
@@ -569,8 +549,8 @@ export default function Funcionamento({
   // Estatísticas (dias ativos, horas semanais)
   // =========================================================================
   const estatisticas = useMemo(
-    () => calcularEstatisticasFuncionamento(horarios),
-    [horarios],
+    () => calcularEstatisticasCombinadas(horarios, horariosPontuais, excecoesVisiveis),
+    [horarios, horariosPontuais, excecoesVisiveis],
   );
 
   // Próximo feriado e férias programadas (para exibir no resumo)
@@ -593,6 +573,40 @@ export default function Funcionamento({
     setDataSelecionadaModal(data);
     setModalExcecao(true);
   };
+
+  // Recebe o título do calendário (ex.: "junho 2026") e atualiza mesExibido
+  const handleCalendarTitle = useCallback((title: string) => {
+    try {
+      const monthsPt = [
+        "janeiro",
+        "fevereiro",
+        "março",
+        "abril",
+        "maio",
+        "junho",
+        "julho",
+        "agosto",
+        "setembro",
+        "outubro",
+        "novembro",
+        "dezembro",
+      ];
+      const lower = title.toLowerCase();
+      const yearMatch = title.match(/(\d{4})/);
+      const year = yearMatch ? Number(yearMatch[1]) : new Date().getFullYear();
+      let month = monthsPt.findIndex((m) => lower.includes(m)) + 1;
+      if (month === 0) {
+        // fallback: keep current month
+        const now = new Date();
+        month = now.getMonth() + 1;
+      }
+      setMesExibido((prev) =>
+        prev.month === month && prev.year === year ? prev : { month, year },
+      );
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   // Estados de carregamento e erro
   if (errorSemanal) {
@@ -740,9 +754,11 @@ export default function Funcionamento({
         <div className="mt-5">
           {abaPrincipal === "semanal" && permissoesFuncionamento.podeAdministrar && (
             <div className="space-y-4">
+
               <FuncionamentoSemanal
                 horarios={horarios}
                 excecoes={excecoesVisiveis}
+                diasMensalAplicado={Array.from(new Set(pontuaisNoMes.map(p => p.dia_semana)))}
                 disabled={!permissoesFuncionamento.podeEditarHorarios}
                 bloqueado={bloqueado}
                 compacto
@@ -800,7 +816,6 @@ export default function Funcionamento({
                 onAplicarDiasUteis={aplicarDiasUteis}
                 onFecharFinsDeSemana={fecharFinsDeSemana}
                 onLimparHorarios={limparHorarios}
-                onDuplicarHorarios={duplicarHorarios}
               />
             </div>
           )}
@@ -814,6 +829,7 @@ export default function Funcionamento({
                 isPsicologo={permissoesFuncionamento.podeCriarExcecoes}
                 compacto
                 esconderCabecalho
+                onCalendarTitleChange={handleCalendarTitle}
               />
             </div>
           )}
@@ -922,10 +938,23 @@ export default function Funcionamento({
 // =========================================================================
 function formatarDataISO(data: unknown): string {
   if (!data) return "";
-  const valorData =
-    typeof data === "string" || typeof data === "number" || data instanceof Date
-      ? data
-      : String(data);
+  const asStr = typeof data === "string" ? data : String(data);
+
+  // Se for string no formato YYYY-MM-DD, crie Date local para evitar problemas de timezone
+  const isoMatch = asStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const ano = Number(isoMatch[1]);
+    const mes = Number(isoMatch[2]);
+    const dia = Number(isoMatch[3]);
+    const d = new Date(ano, mes - 1, dia);
+    const dd = d.getDate().toString().padStart(2, "0");
+    const mm = (d.getMonth() + 1).toString().padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // Caso padrão: tente criar Date a partir de timestamp ou ISO completo
+  const valorData = typeof data === "number" || data instanceof Date ? data : asStr;
   const d = new Date(valorData);
   if (Number.isNaN(d.getTime())) {
     const match = String(data).match(/(\d{4})-(\d{2})-(\d{2})/);

@@ -328,8 +328,7 @@ export default function ModalFuncionamentoMensal({
                     Aplicar funcionamento mensal
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Aplica os horários configurados nesta semana ao mês
-                    selecionado.
+                    Define um funcionamento mensal para o período selecionado, sem alterar a rotina semanal padrão.
                   </p>
                 </div>
               </div>

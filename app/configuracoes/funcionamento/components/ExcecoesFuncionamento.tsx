@@ -90,23 +90,21 @@ export default function ExcecoesFuncionamento({
     [feriadosOficiais],
   );
 
+  // excecoesClinica: usado para listagem (apenas ativos, futuros e sem duplicatas com feriados oficiais)
   const excecoesClinica = useMemo(
     () =>
       excecoes
         .filter(
           (e) =>
             e.ativo !== 0 &&
-            !(
-              e.tipo === "feriado" &&
-              feriadosOficiaisMapa.has(e.data_especifica)
-            ) &&
-            (e.data_especifica >= hoje ||
-              Boolean(e.data_fim && e.data_fim >= hoje)),
+            !(e.tipo === "feriado" && feriadosOficiaisMapa.has(e.data_especifica)) &&
+            (e.data_especifica >= hoje || Boolean(e.data_fim && e.data_fim >= hoje)),
         )
         .sort((a, b) => a.data_especifica.localeCompare(b.data_especifica)),
     [excecoes, feriadosOficiaisMapa, hoje],
   );
 
+  // feriados oficiais futuros (usados na seção de feriados)
   const feriadosOficiaisFuturos = useMemo(
     () =>
       feriadosOficiais
@@ -136,24 +134,43 @@ export default function ExcecoesFuncionamento({
     return excecoesClinica.filter((e) => e.tipo === filtroTipo);
   }, [excecoesClinica, filtroTipo]);
 
-  const proximosFeriados = useMemo(
-    () => feriadosOficiaisFuturos.slice(0, 1),
-    [feriadosOficiaisFuturos],
+  // === INDICADORES: devem refletir os dados efetivamente cadastrados (excecoes prop)
+  const excecoesAtivas = useMemo(
+    () => excecoes.filter((e) => e.ativo !== 0),
+    [excecoes],
   );
 
-  const proximaExcecao = useMemo(
-    () => excecoesClinica[0] || null,
-    [excecoesClinica],
-  );
+  // Próximos feriados: considerar feriados oficiais + feriados cadastrados na clínica
+  const proximosFeriados = useMemo(() => {
+    const hojeDate = new Date(`${hoje}T00:00:00`);
+    const feriadosCadastrados = excecoesAtivas
+      .filter((e) => e.tipo === "feriado")
+      .map((e) => ({ date: e.data_especifica, name: e.descricao || "Feriado" }));
 
+    const todos = [...feriadosOficiaisFuturos, ...feriadosCadastrados]
+      .filter((f) => f.date >= hoje)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return todos.slice(0, 1);
+  }, [feriadosOficiaisFuturos, excecoesAtivas, hoje]);
+
+  // Próxima exceção (não feriado): próxima exceção futura cadastrada
+  const proximaExcecao = useMemo(() => {
+    const futuros = excecoesAtivas.filter((e) => {
+      if (e.tipo === "feriado") return false;
+      return e.data_especifica >= hoje || Boolean(e.data_fim && e.data_fim >= hoje);
+    });
+    return futuros.sort((a, b) => a.data_especifica.localeCompare(b.data_especifica))[0] || null;
+  }, [excecoesAtivas, hoje]);
+
+  // Contagens reais
   const feriasCadastradas = useMemo(
-    () => excecoesClinica.filter((e) => e.tipo === "ferias").length,
-    [excecoesClinica],
+    () => excecoesAtivas.filter((e) => e.tipo === "ferias").length,
+    [excecoesAtivas],
   );
 
   const bloqueiosAtivos = useMemo(
-    () => excecoesClinica.filter((e) => e.tipo === "bloqueio").length,
-    [excecoesClinica],
+    () => excecoesAtivas.filter((e) => e.tipo === "bloqueio").length,
+    [excecoesAtivas],
   );
 
   const filtrosClinica: Array<"todos" | Excecao["tipo"]> = [

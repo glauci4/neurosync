@@ -51,12 +51,12 @@ export type CalendarioSemanalHandle = CalendarioFuncionamentoHandle;
 const CalendarioSemanal = forwardRef<
   CalendarioFuncionamentoHandle,
   CalendarioSemanalProps
->(({ horariosPontuais = [], excecoes, isPsicologo, onDiaClicado, onTitleChange }, ref) => {
+>(({ horarios = [], horariosPontuais = [], excecoes, isPsicologo, onDiaClicado, onTitleChange }, ref) => {
   const [dataAtual, setDataAtual] = useState(new Date());
   const semana = useMemo(() => obterSemana(dataAtual), [dataAtual]);
   const eventosCalendario = useMemo(
-    () => montarEventosCalendario(horariosPontuais, excecoes),
-    [horariosPontuais, excecoes],
+    () => montarEventosCalendario([...horarios, ...horariosPontuais], excecoes),
+    [horarios, horariosPontuais, excecoes],
   );
 
   const semanaAnterior = () => {

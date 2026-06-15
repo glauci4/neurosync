@@ -20,6 +20,7 @@ interface CalendarioFuncionamentoProps {
   isPsicologo: boolean;
   compacto?: boolean;
   esconderCabecalho?: boolean;
+  onCalendarTitleChange?: (title: string) => void;
 }
 
 export default function CalendarioFuncionamento({
@@ -29,6 +30,7 @@ export default function CalendarioFuncionamento({
   isPsicologo,
   compacto = false,
   esconderCabecalho = false,
+  onCalendarTitleChange,
 }: CalendarioFuncionamentoProps) {
   // Estado para controlar a visão atual do calendário (mês ou semana)
   const [view, setView] = useState<"dayGridMonth" | "timeGridWeek">(
@@ -55,6 +57,13 @@ export default function CalendarioFuncionamento({
       // ignore
     }
   }, [view]);
+
+  // Notifica o componente pai quando o título do calendário muda
+  useEffect(() => {
+    if (onCalendarTitleChange) {
+      onCalendarTitleChange(title);
+    }
+  }, [title, onCalendarTitleChange]);
 
   return (
     <section

@@ -46,7 +46,7 @@ export type CalendarioMensalHandle = CalendarioFuncionamentoHandle;
 const CalendarioMensal = forwardRef<
   CalendarioFuncionamentoHandle,
   CalendarioMensalProps
->(({ horariosPontuais = [], excecoes, isPsicologo, onDiaClicado, onTitleChange }, ref) => {
+>(({ horarios = [], horariosPontuais = [], excecoes, isPsicologo, onDiaClicado, onTitleChange }, ref) => {
   const calendarRef = useRef<FullCalendar | null>(null);
   useImperativeHandle(ref, () => ({
     getApi: () => {
@@ -71,9 +71,9 @@ const CalendarioMensal = forwardRef<
   const eventos = useMemo(
     () =>
       eventosParaFullCalendar(
-        montarEventosCalendario(horariosPontuais, excecoes),
+        montarEventosCalendario([...horarios, ...horariosPontuais], excecoes),
       ),
-    [horariosPontuais, excecoes],
+    [horarios, horariosPontuais, excecoes],
   );
 
   return (

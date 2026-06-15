@@ -82,7 +82,7 @@ export async function GET() {
       `SELECT id, tipo, data_especifica, data_fim, hora_inicio, hora_fim, 
               intervalo_inicio, intervalo_fim, ativo, descricao
        FROM horarios_funcionamento
-       WHERE clinica_id = ? AND tipo NOT IN ('funcionamento', 'feriado')
+       WHERE clinica_id = ? AND tipo NOT IN ('funcionamento')
        ORDER BY data_especifica`,
       [acesso.usuario.clinica_id],
     );

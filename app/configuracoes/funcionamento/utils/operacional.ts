@@ -105,6 +105,58 @@ export function calcularEstatisticasFuncionamento(horarios: Horario[]) {
   };
 }
 
+// Calcula estatísticas combinando horários semanais, aplicações pontuais (mensal) e exceções.
+export function calcularEstatisticasCombinadas(
+  horariosSemanais: Horario[],
+  horariosPontuais: Horario[],
+  excecoes: Excecao[],
+) {
+  // Para cada dia da semana, prioriza o horário semanal quando existir;
+  // caso contrário, observa aplicações pontuais que ocorram naquele dia da semana
+  // (desde que não estejam totalmente bloqueadas por exceção).
+  const minutosPorDia: number[] = Array.from({ length: 7 }, () => 0);
+  const ativoPorDia: boolean[] = Array.from({ length: 7 }, () => false);
+
+  for (let dia = 0; dia < 7; dia++) {
+    const semanal = horariosSemanais[dia];
+    if (semanal && semanal.ativo && semanal.hora_inicio && semanal.hora_fim) {
+      let duracao = calcularMinutos(semanal.hora_fim) - calcularMinutos(semanal.hora_inicio);
+      if (semanal.intervalo_inicio && semanal.intervalo_fim) {
+        duracao -= calcularMinutos(semanal.intervalo_fim) - calcularMinutos(semanal.intervalo_inicio);
+      }
+      minutosPorDia[dia] = Math.max(0, duracao);
+      ativoPorDia[dia] = true;
+      continue;
+    }
+
+    // Caso não haja horário semanal, verificar aplicações pontuais para esse dia
+    const pontuaisDoDia = horariosPontuais.filter(
+      (p) => p.dia_semana === dia && p.ativo && p.hora_inicio && p.hora_fim && p.data_especifica && !dataPossuiIndisponibilidadeTotal(excecoes, p.data_especifica),
+    );
+    if (pontuaisDoDia.length > 0) {
+      // usar média das durações pontuais como estimativa semanal para o dia
+      const soma = pontuaisDoDia.reduce((s, p) => {
+        let d = calcularMinutos(p.hora_fim) - calcularMinutos(p.hora_inicio);
+        if (p.intervalo_inicio && p.intervalo_fim) {
+          d -= calcularMinutos(p.intervalo_fim) - calcularMinutos(p.intervalo_inicio);
+        }
+        return s + Math.max(0, d);
+      }, 0);
+      const media = Math.round(soma / pontuaisDoDia.length);
+      minutosPorDia[dia] = media;
+      ativoPorDia[dia] = true;
+    }
+  }
+
+  const diasAtivos = ativoPorDia.filter(Boolean).length;
+  const minutosSemanais = minutosPorDia.reduce((a, b) => a + b, 0);
+
+  return {
+    diasAtivos,
+    horasSemanais: formatarMinutos(minutosSemanais),
+  };
+}
+
 export function obterExcecoesAtivas(excecoes: Excecao[]): Excecao[] {
   return excecoes.filter((excecao) => excecao.ativo !== 0);
 }

@@ -4,7 +4,7 @@
 
 "use client";
 
-import { Calendar, CalendarDays, CopyPlus, Trash2 } from "lucide-react";
+import { Calendar, CalendarDays, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { AplicacaoMensalFuncionamento, Excecao, Horario } from "../types";
 import CardHorarioDia from "./CardHorarioDia";
@@ -21,6 +21,9 @@ interface FuncionamentoSemanalProps {
   compacto?: boolean;
   esconderTextoCabecalho?: boolean;
   modoConsultaOperacional?: boolean; // secretária visualiza disponibilidade sem alterar regras
+  mensalAplicado?: boolean; // indica que há aplicação mensal cobrindo a semana atual
+  // dias do mês exibido com aplicação mensal (0=domingo..6=sábado)
+  diasMensalAplicado?: number[];
   onChange: (index: number, field: keyof Horario, value: unknown) => void;
   onCopiar: (origemIdx: number, destinos: number[]) => void;
   onAplicarMensal: (
@@ -29,7 +32,6 @@ interface FuncionamentoSemanalProps {
   onAplicarDiasUteis: () => void;
   onFecharFinsDeSemana: () => void;
   onLimparHorarios: () => void;
-  onDuplicarHorarios: () => void;
 }
 
 // ----------------------------------------------------------------------
@@ -57,20 +59,22 @@ export default function FuncionamentoSemanal({
   compacto = false,
   esconderTextoCabecalho = false,
   modoConsultaOperacional = false,
+  diasMensalAplicado = [],
   onChange,
   onCopiar,
   onAplicarMensal,
   onAplicarDiasUteis,
   onFecharFinsDeSemana,
   onLimparHorarios,
-  onDuplicarHorarios,
 }: FuncionamentoSemanalProps) {
   const [modalAberto, setModalAberto] = useState(false);
 
   // Combina permissão e bloqueio para desabilitar os cards.
   // Secretárias recebem modo de consulta operacional: campos somente leitura e ações administrativas ocultas.
   const isDisabled = disabled || bloqueado;
-  const podeExibirAcoesAdministrativas = !disabled && !bloqueado;
+  // Exibir ações administrativas (como o link para aplicar mensal) para quem tem permissão,
+  // mesmo quando a edição estiver temporariamente bloqueada pelo funcionamento mensal.
+  const podeExibirAcoesAdministrativas = !disabled;
 
   return (
     <>
@@ -95,7 +99,7 @@ export default function FuncionamentoSemanal({
               <p className="text-xs text-gray-500 mt-1 ml-6">
                 {modoConsultaOperacional
                   ? "Consulte os horários ativos e indisponíveis da clínica para apoio operacional."
-                  : "Configure a rotina semanal da clínica e aplique os horários ao calendário mensal quando necessário."}
+                  : "Configure o funcionamento da clínica e acompanhe os períodos disponíveis para atendimento."}
               </p>
             </div>
           ) : (
@@ -108,7 +112,7 @@ export default function FuncionamentoSemanal({
               onClick={() => setModalAberto(true)}
               className="text-xs font-medium text-[#9F64AF] hover:text-[#8B509B] hover:underline underline-offset-4 transition-colors whitespace-nowrap"
             >
-              Deseja aplicar o funcionamento de forma mensal?
+              Deseja aplicar um funcionamento padrão de forma mensal?
             </button>
           )}
         </div>
@@ -127,6 +131,7 @@ export default function FuncionamentoSemanal({
               diaIdx={horario.dia_semana}
               horario={horario}
               disabled={isDisabled}
+              mensalAplicado={Array.isArray(diasMensalAplicado) && diasMensalAplicado.includes(horario.dia_semana)}
               isFirst={idx === 0}
               isLast={idx === horarios.length - 1}
               onChange={(field, value) => onChange(idx, field, value)}
@@ -162,13 +167,6 @@ export default function FuncionamentoSemanal({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#F3EAF8] hover:bg-[#E1D4F0] text-[#9F64AF] rounded-lg transition-colors"
             >
               <Trash2 size={14} /> Limpar horários
-            </button>
-            <button
-              type="button"
-              onClick={onDuplicarHorarios}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#F3EAF8] hover:bg-[#E1D4F0] text-[#9F64AF] rounded-lg transition-colors"
-            >
-              <CopyPlus size={14} /> Duplicar horários
             </button>
           </div>
         )}

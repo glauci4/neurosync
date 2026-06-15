@@ -22,6 +22,7 @@ interface CardHorarioDiaProps {
   disabled: boolean;
   isFirst: boolean;
   isLast: boolean;
+  mensalAplicado?: boolean;
   onChange: (field: keyof Horario, value: unknown) => void;
   onCopiarPara: (destinos: number[]) => void;
   diasSemana: string[];
@@ -55,6 +56,7 @@ export default function CardHorarioDia({
   disabled,
   isFirst,
   isLast,
+  mensalAplicado = false,
   onChange,
   onCopiarPara,
   diasSemana,
@@ -181,20 +183,26 @@ export default function CardHorarioDia({
 
         {/* Status */}
         <div className="flex items-center">
-          <span
-            className={`inline-flex min-w-[42px] justify-center text-[9px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
-              horario.ativo
-                ? "bg-[#F3EAF8] text-[#6F3A82]"
-                : "bg-gray-100 text-gray-600"
-            }`}
-          >
-            {horario.ativo ? "Aberto" : "Fechado"}
-          </span>
+          {!mensalAplicado && (
+            <span
+              className={`inline-flex min-w-[42px] justify-center text-[9px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                horario.ativo
+                  ? "bg-[#F3EAF8] text-[#6F3A82]"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {horario.ativo ? "Aberto" : "Fechado"}
+            </span>
+          )}
         </div>
 
         {/* Controles */}
         <div className="flex min-w-0 flex-nowrap items-center gap-x-1 gap-y-0 overflow-visible">
-          {disabled ? (
+          {mensalAplicado ? (
+            <span className="rounded-full bg-[#F9F5FF] px-3 py-1 text-xs font-semibold text-[#6F3A82]">
+              Funcionamento definido por aplicação mensal
+            </span>
+          ) : disabled ? (
             horario.ativo ? (
               <div className="flex flex-nowrap items-center gap-x-1 text-sm text-gray-700">
                 <span className="shrink-0 whitespace-nowrap rounded-lg border border-[#9F64AF]/15 bg-white px-2 py-1 font-semibold text-gray-800">
@@ -343,7 +351,7 @@ export default function CardHorarioDia({
         </div>
 
         {/* Botão Copiar com dropdown (renderizado via portal) */}
-        {horario.ativo && !disabled && (
+        {!mensalAplicado && horario.ativo && !disabled && (
           <div className="relative shrink-0 justify-self-end">
             <button
               type="button"

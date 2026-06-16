@@ -124,6 +124,11 @@ export function eventosDoDia(
   const dataISO = obterDataLocalISO(data);
   const diaSemana = data.getDay();
 
+  // Pontual de funcionamento prevalece sobre semanal para a mesma data
+  const temFuncionamentoPontual = eventos.some(
+    (e) => e.tipo === "funcionamento" && e.dataInicio === dataISO,
+  );
+
   return eventos
     .filter((evento) => {
       if (evento.tipo === "funcionamento") {
@@ -132,6 +137,7 @@ export function eventosDoDia(
           const fim = evento.dataFim || inicio;
           return dataISO >= inicio && dataISO <= fim;
         }
+        if (temFuncionamentoPontual) return false;
         return evento.diaSemana === diaSemana;
       }
       const inicio = evento.dataInicio || "";

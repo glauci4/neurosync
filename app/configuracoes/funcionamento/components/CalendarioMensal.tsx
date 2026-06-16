@@ -6,12 +6,15 @@
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
-import { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { toast } from "sonner";
 import type { Excecao, Horario } from "../types";
 import {
+  adicionarDiasISO,
   eventosParaFullCalendar,
   montarEventosCalendario,
+  normalizarDataISO,
+  obterDataLocalISO,
 } from "../utils/calendario";
 
 interface CalendarioMensalProps {
@@ -68,11 +71,60 @@ const CalendarioMensal = forwardRef<
     gotoDate: (date: Date) => calendarRef.current?.getApi()?.gotoDate(date),
   }));
 
-  const eventos = useMemo(
-    () =>
-      eventosParaFullCalendar(
-        montarEventosCalendario([...horarios, ...horariosPontuais], excecoes),
-      ),
+  // Function-based event source: expande semanal por data, suprimindo datas com pontual
+  const calcularEventos = useCallback(
+    (
+      fetchInfo: { start: Date; end: Date },
+      successCallback: (events: object[]) => void,
+    ) => {
+      const datasComPontual = new Set(
+        horariosPontuais
+          .filter((h) => h.ativo && h.data_especifica)
+          .map((h) => normalizarDataISO(h.data_especifica))
+          .filter(Boolean),
+      );
+
+      const eventosCalendario = montarEventosCalendario(
+        [...horarios, ...horariosPontuais],
+        excecoes,
+      );
+      const resultado: object[] = [];
+
+      for (const evento of eventosCalendario) {
+        if (
+          evento.tipo === "funcionamento" &&
+          !evento.dataInicio &&
+          evento.diaSemana !== undefined
+        ) {
+          // Semanal: expande para cada data do range, pulando as com pontual
+          const cursor = new Date(fetchInfo.start);
+          while (cursor < fetchInfo.end) {
+            if (cursor.getDay() === evento.diaSemana) {
+              const dateISO = obterDataLocalISO(cursor);
+              if (!datasComPontual.has(dateISO)) {
+                resultado.push({
+                  id: `${evento.id}-${dateISO}`,
+                  title: evento.titulo,
+                  start: dateISO,
+                  end: adicionarDiasISO(dateISO, 1),
+                  allDay: true,
+                  backgroundColor: evento.corBg,
+                  textColor: evento.corTexto,
+                  borderColor: "transparent",
+                  classNames: [`evento-${evento.tipo}`, "evento-funcionamento"],
+                  extendedProps: { tipo: evento.tipo, descricao: evento.descricao },
+                });
+              }
+            }
+            cursor.setDate(cursor.getDate() + 1);
+          }
+        } else {
+          resultado.push(...eventosParaFullCalendar([evento]));
+        }
+      }
+
+      successCallback(resultado);
+    },
     [horarios, horariosPontuais, excecoes],
   );
 
@@ -83,7 +135,7 @@ const CalendarioMensal = forwardRef<
         plugins={[dayGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
         headerToolbar={false}
-        events={eventos}
+        events={calcularEventos}
         eventDidMount={(arg) => {
           arg.el.title = arg.event.title || "";
         }}

@@ -48,6 +48,19 @@ function validarTelefone(telefone: string) {
   return numeros.length >= 10 && numeros.length <= 11;
 }
 
+function obterResponsavelNome(linha: LinhaImportacaoPayload) {
+  const extras = linha as LinhaImportacaoPayload & Record<string, unknown>;
+  return normalizarTexto(
+    String(
+      linha.responsavel_nome ||
+        extras.responsavel ||
+        extras.nome_responsavel ||
+        extras.nome_do_responsavel ||
+        "",
+    ),
+  );
+}
+
 function normalizarDataNascimento(data?: string | Date | number | null) {
   if (data instanceof Date && !Number.isNaN(data.getTime())) {
     const ano = data.getFullYear();
@@ -151,7 +164,7 @@ function validarLinha(
     linha.tipo === "adulto" || linha.tipo === "menor" ? linha.tipo : "";
   const dataNascimentoValida = validarDataNascimento(dataNascimento);
   const tipoInferido = inferirTipoPaciente(tipo, dataNascimento);
-  const responsavelNome = normalizarTexto(linha.responsavel_nome);
+  const responsavelNome = obterResponsavelNome(linha);
   const responsavelCpf = somenteNumeros(linha.responsavel_cpf);
 
   if (!nome || nome.length < 3) erros.push("Nome obrigatório");

@@ -30,6 +30,17 @@ function validarTelefone(telefone: string) {
   return numeros.length >= 10 && numeros.length <= 11;
 }
 
+function obterResponsavelNome(linha: LinhaImportacaoPaciente) {
+  const extras = linha as LinhaImportacaoPaciente & Record<string, unknown>;
+  return String(
+    linha.responsavel_nome ||
+      extras.responsavel ||
+      extras.nome_responsavel ||
+      extras.nome_do_responsavel ||
+      "",
+  ).trim();
+}
+
 function normalizarDataNascimento(
   data: string | Date | number | null | undefined,
 ) {
@@ -147,7 +158,7 @@ export function validarLinhasImportacao(linhas: LinhaImportacaoPaciente[]) {
       erros.push("E-mail inválido");
     }
 
-    if (tipoInferido === "menor" && !linha.responsavel_nome.trim()) {
+    if (tipoInferido === "menor" && !obterResponsavelNome(linha)) {
       erros.push("Paciente menor exige responsável");
     }
 

@@ -74,6 +74,16 @@ export function normalizarDataImportada(valor: unknown) {
   return texto;
 }
 
+function obterResponsavelNome(mapa: Record<string, unknown>) {
+  return (
+    mapa.responsavel_nome ??
+    mapa.responsavel ??
+    mapa.nome_responsavel ??
+    mapa.nome_do_responsavel ??
+    ""
+  );
+}
+
 function normalizarRegistro(
   registro: Record<string, unknown>,
   indice: number,
@@ -97,7 +107,7 @@ function normalizarRegistro(
     email: String(mapa.email || "").trim(),
     data_nascimento: normalizarDataImportada(dataNascimento),
     tipo: normalizarTipo(mapa.tipo),
-    responsavel_nome: String(mapa.responsavel_nome || "").trim(),
+    responsavel_nome: String(obterResponsavelNome(mapa) || "").trim(),
     responsavel_cpf: String(mapa.responsavel_cpf || "").trim(),
     observacoes: String(mapa.observacoes || "").trim(),
     erros: [],

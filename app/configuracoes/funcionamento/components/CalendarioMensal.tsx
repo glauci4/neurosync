@@ -197,7 +197,6 @@ const CalendarioMensal = forwardRef<
             margin: 5px;
             box-shadow: 0 4px 14px rgba(44, 31, 51, 0.05);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
-            overflow: hidden;
             height: 112px;
             min-height: 112px;
             display: flex;

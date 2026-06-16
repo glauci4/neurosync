@@ -166,10 +166,6 @@ function ItemNotificacao({
   const categoria = obterCategoriaNotificacao(notificacao.tipo);
   const configCategoria = CONFIG_CATEGORIA[categoria];
   const IconeCategoria = configCategoria.icone;
-  const destino = obterDestinoNotificacao(
-    notificacao.tipo,
-    notificacao.entidade_tipo,
-  );
   const rotuloCategoria = obterRotuloCategoria(notificacao);
 
   const menuAberto = activeMenuId === notificacao.id;
@@ -197,13 +193,6 @@ function ItemNotificacao({
       document.removeEventListener("keydown", fecharComEscape);
     };
   }, [menuAberto, setActiveMenuId]);
-
-  function abrirNotificacao() {
-    if (!destino) return;
-    // Não marcar como lida automaticamente ao abrir — apenas navegar
-    setActiveMenuId(null);
-    router.push(destino);
-  }
 
   function alternarLeitura() {
     if (lida) {
@@ -271,15 +260,6 @@ function ItemNotificacao({
 
           {menuAberto ? (
             <div ref={menuRef} className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-[#9F64AF]/15 bg-white py-1 text-sm shadow-lg">
-              {destino ? (
-                <button
-                  type="button"
-                  onClick={abrirNotificacao}
-                  className="flex w-full items-center px-3 py-2 text-left text-xs font-medium text-slate-600 transition hover:bg-[#F3EAF8] hover:text-[#6F4E7A]"
-                >
-                  Abrir
-                </button>
-              ) : null}
               <div className="max-h-44 overflow-auto agenda-filtro-scroll">
                 <button
                   type="button"

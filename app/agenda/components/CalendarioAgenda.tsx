@@ -49,6 +49,8 @@ export interface ConsultaAgenda {
   fechado_dia?: boolean | number;
   criado_em?: string;
   atualizado_em?: string;
+  prontuario_id?: number | null;
+  prontuario_status?: "rascunho" | "finalizado" | "assinado" | null;
 }
 
 export interface CalendarioAgendaHandle {

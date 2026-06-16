@@ -8,11 +8,13 @@ import { motion } from "framer-motion";
 import {
   CalendarDays,
   CalendarClock,
+  DoorOpen,
   FileCheck,
   FileText,
   PenLine,
   PencilLine,
   Signature,
+  UserRound,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -174,7 +176,7 @@ function BlocoConsultaVinculada({
         : "-";
 
   return (
-    <section className="rounded-2xl border border-[#D9BCE8] bg-[#FBF7FF] px-4 py-3 shadow-sm">
+    <section className="rounded-xl border border-[#D9BCE8] bg-[#FBF7FF] px-3 py-2.5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase text-gray-400">
@@ -196,7 +198,7 @@ function BlocoConsultaVinculada({
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-600">
         <span className="inline-flex items-center gap-1.5">
           <CalendarClock size={13} className="shrink-0 text-[#9F64AF]" />
           {formatarHoraCurta(evolucao.consulta_horario_inicio)} às{" "}
@@ -207,26 +209,26 @@ function BlocoConsultaVinculada({
           {tipoConsulta}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <PenLine size={13} className="shrink-0 text-[#9F64AF]" />
+          <UserRound size={13} className="shrink-0 text-[#9F64AF]" />
           {evolucao.consulta_psicologo_nome || "-"}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <CalendarDays size={13} className="shrink-0 text-[#9F64AF]" />
+          <DoorOpen size={13} className="shrink-0 text-[#9F64AF]" />
           {evolucao.consulta_sala_nome || "-"}
         </span>
       </div>
 
       {evolucao.consulta_observacoes && (
-        <p className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500">
+        <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-gray-500">
           {evolucao.consulta_observacoes}
         </p>
       )}
 
-      <div className="mt-3 flex justify-end">
+      <div className="mt-2 flex justify-end">
         <button
           type="button"
           onClick={() => onVerDetalhesConsulta(evolucao)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[#9F64AF]/20 bg-white px-3 py-1.5 text-xs font-semibold text-[#9F64AF] transition hover:bg-[#F3EAF8]"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[#9F64AF]/20 bg-white px-2.5 py-1.5 text-xs font-semibold text-[#9F64AF] transition hover:bg-[#F3EAF8]"
         >
           Ver detalhes da consulta
         </button>
@@ -414,7 +416,6 @@ export function ModalVisualizarRegistroClinico({
 
             {evolucao.status === "assinado" && (
               <div className="mt-4 pt-3">
-                <div className="mb-3 h-px w-56 bg-gray-200/80" />
                 <div className="max-w-sm text-gray-700">
                   {evolucao.assinatura_url && (
                     <Image
@@ -425,6 +426,7 @@ export function ModalVisualizarRegistroClinico({
                       className="mb-1.5 max-h-28 max-w-[340px] object-contain"
                     />
                   )}
+                  <div className="mb-3 h-px w-56 bg-gray-200/80" />
                   <p className="text-sm font-semibold text-gray-800">
                     {evolucao.psicologo_nome}
                   </p>

@@ -198,14 +198,33 @@ export async function GET(
     const [ultimasConsultas] = await connection.execute<RowDataPacket[]>(
       `SELECT
          c.id,
-         c.data_consulta,
+         DATE_FORMAT(c.data_consulta, '%Y-%m-%d') AS data_consulta,
          c.horario_inicio,
          c.horario_fim,
          c.status,
          c.tipo_atendimento,
          c.tipo_outro,
+         c.observacoes,
          s.nome AS sala_nome,
-         u.nome AS psicologo_nome
+         u.nome AS psicologo_nome,
+         (
+           SELECT rc.id
+           FROM registros_clinicos rc
+           WHERE rc.consulta_id = c.id
+             AND rc.clinica_id = c.clinica_id
+             AND rc.deleted_at IS NULL
+           ORDER BY FIELD(rc.status, 'assinado', 'finalizado', 'rascunho'), rc.atualizado_em DESC, rc.id DESC
+           LIMIT 1
+         ) AS prontuario_id,
+         (
+           SELECT rc.status
+           FROM registros_clinicos rc
+           WHERE rc.consulta_id = c.id
+             AND rc.clinica_id = c.clinica_id
+             AND rc.deleted_at IS NULL
+           ORDER BY FIELD(rc.status, 'assinado', 'finalizado', 'rascunho'), rc.atualizado_em DESC, rc.id DESC
+           LIMIT 1
+         ) AS prontuario_status
        FROM consultas c
        LEFT JOIN salas s ON s.id = c.sala_id
        LEFT JOIN usuarios u ON u.id = c.psicologo_id
@@ -222,8 +241,15 @@ export async function GET(
       status: String(consulta.status || ""),
       tipo_atendimento: String(consulta.tipo_atendimento || ""),
       tipo_outro: consulta.tipo_outro ? String(consulta.tipo_outro) : null,
+      observacoes: consulta.observacoes ? String(consulta.observacoes) : null,
       sala_nome: consulta.sala_nome ? String(consulta.sala_nome) : null,
       psicologo_nome: consulta.psicologo_nome ? String(consulta.psicologo_nome) : null,
+      prontuario_id: consulta.prontuario_id
+        ? Number(consulta.prontuario_id)
+        : null,
+      prontuario_status: consulta.prontuario_status
+        ? String(consulta.prontuario_status)
+        : null,
     }));
     pacienteData.historico_consultas_resumo = {
       total: Number(resumoHistorico[0]?.total || 0),

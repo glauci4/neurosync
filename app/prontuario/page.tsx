@@ -1775,6 +1775,8 @@ export default function ProntuarioPage() {
       tipo_outro: evolucao.consulta_tipo_outro || null,
       observacoes: evolucao.consulta_observacoes || null,
       fechado_dia: false,
+      prontuario_id: evolucao.id,
+      prontuario_status: evolucao.status,
     });
     setEvolucaoVisualizacao(null);
   };
@@ -2010,9 +2012,16 @@ export default function ProntuarioPage() {
           }
         }}
         onRegistrarProntuario={() => undefined}
-        onAbrirProntuario={() => undefined}
+        onAbrirProntuario={() => {
+          setConsultaVisualizacao(null);
+          if (evolucaoVisualizacaoRetorno) {
+            setEvolucaoVisualizacao(evolucaoVisualizacaoRetorno);
+            setEvolucaoVisualizacaoRetorno(null);
+          }
+        }}
         onRemarcar={() => undefined}
         mostrarVoltar={false}
+        prontuarioStatus={consultaVisualizacao?.prontuario_status || null}
       />
 
       <div ref={printRef}>

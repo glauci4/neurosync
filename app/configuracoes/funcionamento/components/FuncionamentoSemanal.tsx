@@ -24,6 +24,9 @@ interface FuncionamentoSemanalProps {
   mensalAplicado?: boolean; // indica que há aplicação mensal cobrindo a semana atual
   // dias do mês exibido com aplicação mensal (0=domingo..6=sábado)
   diasMensalAplicado?: number[];
+  // dias da semana que possuem qualquer aplicação mensal — usado apenas para
+  // trocar o texto do dia fechado, sem bloquear a edição (0=domingo..6=sábado)
+  diasComMensal?: number[];
   onChange: (index: number, field: keyof Horario, value: unknown) => void;
   onCopiar: (origemIdx: number, destinos: number[]) => void;
   onAplicarMensal: (
@@ -60,6 +63,7 @@ export default function FuncionamentoSemanal({
   esconderTextoCabecalho = false,
   modoConsultaOperacional = false,
   diasMensalAplicado = [],
+  diasComMensal = [],
   onChange,
   onCopiar,
   onAplicarMensal,
@@ -132,6 +136,7 @@ export default function FuncionamentoSemanal({
               horario={horario}
               disabled={isDisabled}
               mensalAplicado={Array.isArray(diasMensalAplicado) && diasMensalAplicado.includes(horario.dia_semana)}
+              temMensalNoDia={Array.isArray(diasComMensal) && diasComMensal.includes(horario.dia_semana)}
               isFirst={idx === 0}
               isLast={idx === horarios.length - 1}
               onChange={(field, value) => onChange(idx, field, value)}

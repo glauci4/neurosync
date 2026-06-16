@@ -64,11 +64,13 @@ export async function PUT(request: Request) {
         return Response.json({ error: "Formato inválido" }, { status: 400 });
       }
 
+      // Substitui integralmente a configuração pontual: cada nova aplicação
+      // mensal remove todas as aplicações pontuais anteriores da clínica,
+      // garantindo que o novo horário sobrescreva o antigo sem duplicidade.
       await connection.execute(
         `DELETE FROM horarios_funcionamento
-         WHERE clinica_id = ? AND tipo = 'funcionamento' AND data_especifica IS NOT NULL
-           AND data_especifica BETWEEN ? AND ?`,
-        [acesso.usuario.clinica_id, datas[0], datas[datas.length - 1]],
+         WHERE clinica_id = ? AND tipo = 'funcionamento' AND data_especifica IS NOT NULL`,
+        [acesso.usuario.clinica_id],
       );
 
       for (const item of aplicacoesPontuais) {
@@ -82,7 +84,14 @@ export async function PUT(request: Request) {
         await connection.execute(
           `INSERT INTO horarios_funcionamento
            (clinica_id, dia_semana, data_especifica, hora_inicio, hora_fim, intervalo_inicio, intervalo_fim, tipo, ativo)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'funcionamento', ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'funcionamento', ?)
+           ON DUPLICATE KEY UPDATE
+             dia_semana = VALUES(dia_semana),
+             hora_inicio = VALUES(hora_inicio),
+             hora_fim = VALUES(hora_fim),
+             intervalo_inicio = VALUES(intervalo_inicio),
+             intervalo_fim = VALUES(intervalo_fim),
+             ativo = VALUES(ativo)`,
           [
             acesso.usuario.clinica_id,
             diaSemana,
@@ -102,9 +111,12 @@ export async function PUT(request: Request) {
       });
     }
 
-    // Remove todos os registros semanais da clínica
+    // Remove apenas os registros semanais (sem data específica) da clínica.
+    // As aplicações pontuais/mensais (data_especifica preenchida) são preservadas,
+    // permitindo editar o funcionamento semanal sem apagar o mensal vigente.
     await connection.execute(
-      `DELETE FROM horarios_funcionamento WHERE clinica_id = ? AND tipo = 'funcionamento'`,
+      `DELETE FROM horarios_funcionamento
+       WHERE clinica_id = ? AND tipo = 'funcionamento' AND data_especifica IS NULL`,
       [acesso.usuario.clinica_id],
     );
 

@@ -8,7 +8,14 @@ import type { HistoricoConsultasPacientePrintConfig } from "../types/historicoCo
 
 function dataPtBr(valor?: string | null) {
   if (!valor) return "";
-  const data = new Date(`${String(valor).slice(0, 10)}T00:00:00`);
+  const dataIso = String(valor).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dataIso)) {
+    const [ano, mes, dia] = dataIso.split("-").map(Number);
+    const dataLocal = new Date(ano, mes - 1, dia);
+    return new Intl.DateTimeFormat("pt-BR").format(dataLocal);
+  }
+
+  const data = new Date(valor);
   if (Number.isNaN(data.getTime())) return String(valor);
   return new Intl.DateTimeFormat("pt-BR").format(data);
 }
@@ -67,7 +74,7 @@ export default function HistoricoConsultasPacientePrintLayout({
                 return (
                   <article
                     key={consulta.id}
-                    className="rounded-xl border border-[#E5D9F3] bg-white px-4 py-3"
+                    className="border-b border-[#E5D9F3] bg-white py-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>

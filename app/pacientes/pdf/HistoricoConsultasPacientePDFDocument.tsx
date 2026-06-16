@@ -18,7 +18,14 @@ const TIPOS_ATENDIMENTO: Record<string, string> = {
 
 function dataPtBr(valor?: string | null) {
   if (!valor) return "";
-  const data = new Date(`${String(valor).slice(0, 10)}T00:00:00`);
+  const dataIso = String(valor).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dataIso)) {
+    const [ano, mes, dia] = dataIso.split("-").map(Number);
+    const dataLocal = new Date(ano, mes - 1, dia);
+    return new Intl.DateTimeFormat("pt-BR").format(dataLocal);
+  }
+
+  const data = new Date(valor);
   if (Number.isNaN(data.getTime())) return String(valor);
   return new Intl.DateTimeFormat("pt-BR").format(data);
 }
@@ -88,11 +95,10 @@ export default function HistoricoConsultasPacientePDFDocument({
               <View
                 key={consulta.id}
                 style={{
-                  marginBottom: 8,
-                  padding: 10,
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: "#e5d9f3",
+                  marginBottom: 11,
+                  paddingBottom: 9,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#eee7f3",
                 }}
               >
                 <Text

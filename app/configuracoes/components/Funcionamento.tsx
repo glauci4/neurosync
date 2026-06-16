@@ -64,6 +64,7 @@ const TOAST_AVISO = {
 };
 
 const TOAST_PENDENCIAS_ID = "funcionamento-pendencias";
+const TOAST_MENSAL_VIGENTE_ID = "funcionamento-mensal-vigente";
 
 interface FuncionamentoProps {
   podeEditar: boolean;
@@ -211,21 +212,52 @@ export default function Funcionamento({
     primeiraCarga.current = false;
   }, [dataSemanal]);
 
-  // Se houver aplicações pontuais (funcionamento mensal) para o período carregado,
-  // sinaliza bloqueio da edição semanal e exibe aviso informativo.
-  // Bloqueia edição semanal apenas quando houver aplicações pontuais no mês exibido
-  const pontuaisNoMes = useMemo(() => {
-    if (!horariosPontuais || horariosPontuais.length === 0) return [] as typeof horariosPontuais;
-    return horariosPontuais.filter((h) => {
-      if (!h.data_especifica) return false;
-      const [y, m] = h.data_especifica.split("-").map(Number);
-      return y === mesExibido.year && m === mesExibido.month;
-    });
-  }, [horariosPontuais, mesExibido]);
+  // Dias da semana (0=domingo..6=sábado) que possuem QUALQUER aplicação mensal
+  // futura. Usado apenas para trocar o texto do dia fechado no editor semanal,
+  // sem bloquear a edição.
+  const diasComMensal = useMemo(() => {
+    if (!horariosPontuais || horariosPontuais.length === 0) return [] as number[];
+    const hoje = new Date();
+    const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+    const dias = new Set<number>();
+    for (const h of horariosPontuais) {
+      if (!h.data_especifica) continue;
+      if (h.data_especifica < hojeISO) continue;
+      const [ano, mes, dia] = h.data_especifica.split("-").map(Number);
+      dias.add(new Date(ano, mes - 1, dia).getDay());
+    }
+    return Array.from(dias);
+  }, [horariosPontuais]);
 
+  // Existe qualquer aplicação mensal futura configurada? (independe do mês exibido)
+  const temMensalConfigurado = diasComMensal.length > 0;
+
+  // A edição semanal nunca é bloqueada por aplicações mensais (estado `bloqueado`
+  // permanece sempre false). Salvar o semanal preserva as aplicações pontuais,
+  // pois o backend só remove registros sem data específica.
+
+  // Aviso (toast) informando que há funcionamento mensal configurado, exibido uma
+  // única vez quando o usuário entra na aba semanal e existe mensal. A edição
+  // permanece liberada.
+  const avisoMensalExibido = useRef(false);
   useEffect(() => {
-    setBloqueado(pontuaisNoMes.length > 0);
-  }, [pontuaisNoMes.length]);
+    if (
+      abaPrincipal === "semanal" &&
+      temMensalConfigurado &&
+      !avisoMensalExibido.current
+    ) {
+      avisoMensalExibido.current = true;
+      toast.info(
+        "Há um funcionamento mensal configurado. Você pode editar os horários semanais normalmente — as datas com aplicação mensal serão preservadas ao salvar.",
+        {
+          id: TOAST_MENSAL_VIGENTE_ID,
+          icon: <AlertCircle size={16} className="text-amber-600" />,
+          ...TOAST_AVISO,
+          duration: 8000,
+        },
+      );
+    }
+  }, [abaPrincipal, temMensalConfigurado]);
 
   // =========================================================================
   // Detecção de pendências
@@ -758,7 +790,8 @@ export default function Funcionamento({
               <FuncionamentoSemanal
                 horarios={horarios}
                 excecoes={excecoesVisiveis}
-                diasMensalAplicado={Array.from(new Set(pontuaisNoMes.map(p => p.dia_semana)))}
+                diasMensalAplicado={[]}
+                diasComMensal={diasComMensal}
                 disabled={!permissoesFuncionamento.podeEditarHorarios}
                 bloqueado={bloqueado}
                 compacto

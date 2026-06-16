@@ -1,7 +1,0 @@
-Revert record: Reverted changes to Funcionamento module (Funcionamento.tsx, FuncionamentoSemanal.tsx, CardHorarioDia.tsx) per user request on 2026-06-14T22:08:26-03:00.
-Files reverted:
-- app\configuracoes\components\Funcionamento.tsx (useEffect and mensal sync changes reverted)
-- app\configuracoes\funcionamento\components\FuncionamentoSemanal.tsx (restored to previous version)
-- app\configuracoes\funcionamento\components\CardHorarioDia.tsx (restored to previous version)
-
-Note: This file is temporary and not part of project; will be cleaned up later.

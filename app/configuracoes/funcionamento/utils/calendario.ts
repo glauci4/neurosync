@@ -90,7 +90,7 @@ export function montarEventosCalendario(
     });
 
   const eventosExcecoes = excecoes
-    .filter((e) => e.ativo !== 0 && e.tipo !== "feriado")
+    .filter((e) => e.ativo !== 0)
     .map<EventoCalendario>((e) => {
       const cores = CORES_EVENTO[e.tipo] || CORES_EVENTO.excecao;
       const temHorario = Boolean(e.hora_inicio && e.hora_fim);
@@ -197,3 +197,5 @@ export function eventosParaFullCalendar(eventos: EventoCalendario[]) {
     };
   });
 }
+
+

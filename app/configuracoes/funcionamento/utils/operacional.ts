@@ -1,3 +1,5 @@
+// app/api/clinica/funcionamento/operacional.ts
+
 import type { Excecao, Horario } from "../types";
 import { calcularMinutos, formatarMinutos } from "./calculos";
 import { excecaoAtingeData, obterDataLocalISO } from "./calendario";
@@ -7,7 +9,11 @@ export const DIAS_UTEIS = [1, 2, 3, 4, 5];
 export const FINS_DE_SEMANA = [0, 6];
 
 export function normalizarHorario(valor?: string | null): string {
-  return !valor || valor === "00:00" ? "" : valor;
+  if (!valor) return "";
+  // O MySQL retorna colunas TIME como "HH:MM:SS"; recortamos para "HH:MM"
+  // para casar com a validação (REGEX_HORARIO) e o input type="time".
+  const recortado = valor.trim().slice(0, 5);
+  return recortado === "00:00" ? "" : recortado;
 }
 
 export function normalizarHorarioNullable(

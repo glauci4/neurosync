@@ -129,7 +129,25 @@ export async function GET(request: Request) {
               ${colunaTipoOutro} AS tipo_outro,
               c.status, c.observacoes,
               ${colunaFechadoDia} AS fechado_dia,
-              c.criado_em, c.atualizado_em
+              c.criado_em, c.atualizado_em,
+              (
+                SELECT rc.id
+                FROM registros_clinicos rc
+                WHERE rc.consulta_id = c.id
+                  AND rc.clinica_id = c.clinica_id
+                  AND rc.deleted_at IS NULL
+                ORDER BY FIELD(rc.status, 'assinado', 'finalizado', 'rascunho'), rc.atualizado_em DESC, rc.id DESC
+                LIMIT 1
+              ) AS prontuario_id,
+              (
+                SELECT rc.status
+                FROM registros_clinicos rc
+                WHERE rc.consulta_id = c.id
+                  AND rc.clinica_id = c.clinica_id
+                  AND rc.deleted_at IS NULL
+                ORDER BY FIELD(rc.status, 'assinado', 'finalizado', 'rascunho'), rc.atualizado_em DESC, rc.id DESC
+                LIMIT 1
+              ) AS prontuario_status
        FROM consultas c
        INNER JOIN pacientes p ON p.id = c.paciente_id
        INNER JOIN usuarios u ON u.id = c.psicologo_id

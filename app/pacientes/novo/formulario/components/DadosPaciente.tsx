@@ -391,6 +391,13 @@ const DadosPaciente = forwardRef<DadosPacienteRef, DadosPacienteProps>(
         }));
         return;
       }
+      if (tipo === "menor" && calcularIdade(valor) >= 18) {
+        setErrors((prev) => ({
+          ...prev,
+          data_nascimento: "Paciente menor deve ter menos de 18 anos",
+        }));
+        return;
+      }
       setErrors((prev) => ({ ...prev, data_nascimento: undefined }));
     };
 

@@ -2,11 +2,9 @@
 
 import { motion } from "framer-motion";
 import {
+  ArrowLeft,
   CalendarClock,
-  ChevronLeft,
-  Clock,
   MapPin,
-  User,
   X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -26,13 +24,25 @@ interface HistoricoConsultasPacienteModalProps {
   pacienteNome: string;
   consultas: ConsultaHistoricoPaciente[];
   onClose: () => void;
-  onVerDetalhesConsulta?: (consulta: ConsultaHistoricoPaciente) => void;
 }
 
 function formatarData(data: string) {
-  const valor = new Date(`${String(data).slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(valor.getTime())) return String(data || "-");
-  return new Intl.DateTimeFormat("pt-BR").format(valor);
+  const valor = String(data || "").trim();
+  if (!valor) return "-";
+
+  const dataIso = valor.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dataIso) {
+    return `${dataIso[3]}/${dataIso[2]}/${dataIso[1]}`;
+  }
+
+  const dataJs = new Date(valor);
+  if (Number.isNaN(dataJs.getTime())) return valor;
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(dataJs);
 }
 
 function horaCurta(hora?: string | null) {
@@ -63,7 +73,6 @@ export default function HistoricoConsultasPacienteModal({
   pacienteNome,
   consultas,
   onClose,
-  onVerDetalhesConsulta,
 }: HistoricoConsultasPacienteModalProps) {
   const { printRef, config, imprimirHistorico } =
     useImprimirHistoricoConsultasPaciente();
@@ -99,7 +108,7 @@ export default function HistoricoConsultasPacienteModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl"
+          className="relative w-full max-w-[700px] rounded-2xl bg-white shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -113,6 +122,14 @@ export default function HistoricoConsultasPacienteModal({
 
           <div className="border-b border-[#9F64AF]/10 px-6 pt-6 pb-5 pr-14">
             <div className="flex items-start gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-[#9F64AF]"
+                aria-label="Voltar para detalhes do paciente"
+              >
+                <ArrowLeft size={19} />
+              </button>
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#F3EAF8] text-[#9F64AF]">
                 <CalendarClock size={22} />
               </span>
@@ -133,14 +150,14 @@ export default function HistoricoConsultasPacienteModal({
             <section className="mt-5">
               <div className="mb-3 flex items-center gap-2">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#F3EAF8] text-[#9F64AF]">
-                  <User size={16} />
+                  <CalendarClock size={16} />
                 </span>
                 <div>
                   <h3 className="text-sm font-semibold text-gray-800">
-                    Linha do tempo
+                    Consultas registradas
                   </h3>
                   <p className="text-xs text-gray-500">
-                    Consultas operacionais registradas para este paciente.
+                    Histórico de atendimentos e agendamentos deste paciente.
                   </p>
                 </div>
               </div>
@@ -180,16 +197,12 @@ export default function HistoricoConsultasPacienteModal({
                           <MapPin size={13} className="text-[#9F64AF]" />
                           {consulta.sala_nome || "Sala não informada"}
                         </span>
-                        {onVerDetalhesConsulta ? (
-                          <button
-                            type="button"
-                            onClick={() => onVerDetalhesConsulta(consulta)}
-                            className="rounded-lg border border-[#9F64AF]/20 bg-white px-3 py-1.5 text-xs font-medium text-[#9F64AF] transition hover:border-[#9F64AF] hover:bg-[#F9F4FC]"
-                          >
-                            Ver detalhes da consulta
-                          </button>
-                        ) : null}
                       </div>
+                      {consulta.observacoes ? (
+                        <p className="mt-2 text-xs text-gray-500">
+                          {consulta.observacoes}
+                        </p>
+                      ) : null}
                     </article>
                   );
                 })}

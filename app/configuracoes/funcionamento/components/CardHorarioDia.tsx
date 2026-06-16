@@ -23,6 +23,7 @@ interface CardHorarioDiaProps {
   isFirst: boolean;
   isLast: boolean;
   mensalAplicado?: boolean;
+  temMensalNoDia?: boolean;
   onChange: (field: keyof Horario, value: unknown) => void;
   onCopiarPara: (destinos: number[]) => void;
   diasSemana: string[];
@@ -57,6 +58,7 @@ export default function CardHorarioDia({
   isFirst,
   isLast,
   mensalAplicado = false,
+  temMensalNoDia = false,
   onChange,
   onCopiarPara,
   diasSemana,
@@ -345,7 +347,11 @@ export default function CardHorarioDia({
                 />
                 <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#9F64AF]/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#9F64AF]" />
               </label>
-              <span className="text-gray-400 text-xs italic">Sem horários</span>
+              <span className="text-gray-400 text-xs italic">
+                {temMensalNoDia
+                  ? "Definido por aplicação mensal"
+                  : "Sem horários"}
+              </span>
             </div>
           )}
         </div>

@@ -1007,7 +1007,11 @@ export default function AgendaPage() {
         onClose={fecharDetalhesConsulta}
         onVoltar={fecharDetalhesConsulta}
         onRegistrarProntuario={abrirProntuarioConsulta}
-        onAbrirProntuario={() => {
+        onAbrirProntuario={(consulta) => {
+          if (consulta.prontuario_id) {
+            router.push(`/prontuario?registro_id=${consulta.prontuario_id}`);
+            return;
+          }
           if (prontuarioConsultaSelecionada) {
             router.push(`/prontuario?registro_id=${prontuarioConsultaSelecionada.id}`);
             return;
@@ -1015,7 +1019,11 @@ export default function AgendaPage() {
           router.push("/prontuario");
         }}
         onRemarcar={(consulta) => abrirEdicaoConsulta(consulta, "remarcar")}
-        prontuarioStatus={prontuarioConsultaSelecionada?.status || null}
+        prontuarioStatus={
+          consultaSelecionada?.prontuario_status ||
+          prontuarioConsultaSelecionada?.status ||
+          null
+        }
       />
     </div>
   );

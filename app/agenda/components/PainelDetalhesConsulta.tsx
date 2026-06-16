@@ -9,7 +9,6 @@ import {
   Clock,
   ChevronLeft,
   FileText,
-  History,
   MapPin,
   User,
   X,
@@ -97,19 +96,6 @@ function formatarData(data: string) {
 
 function horaCurta(hora: string) {
   return hora?.slice(0, 5) || "";
-}
-
-function dataHoraPtBr(valor?: string | null) {
-  if (!valor) return "";
-  const data = new Date(valor);
-  if (Number.isNaN(data.getTime())) return String(valor);
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(data);
 }
 
 function consultaJaPassou(consulta: {
@@ -254,12 +240,16 @@ function LinhaProntuario({
     ? "Não registrado"
     : assinado
       ? "Assinado digitalmente"
-      : "Registrado";
+      : statusProntuario === "rascunho"
+        ? "Rascunho"
+        : "Finalizado";
   const badge = !temProntuario
     ? { texto: "Pendente", classe: "border-[#D9BCE8] bg-[#F3EAF8] text-[#5F2D6D]" }
     : assinado
       ? { texto: "Assinado", classe: "border-[#D9BCE8] bg-[#F3EAF8] text-[#5F2D6D]" }
-      : { texto: "Finalizado", classe: "border-[#D9BCE8] bg-[#F3EAF8] text-[#5F2D6D]" };
+      : statusProntuario === "rascunho"
+        ? { texto: "Rascunho", classe: "border-amber-100 bg-amber-50 text-amber-700" }
+        : { texto: "Finalizado", classe: "border-[#D9BCE8] bg-[#F3EAF8] text-[#5F2D6D]" };
   const acao = !temProntuario ? onRegistrarProntuario : onAbrirProntuario;
   const labelAcao = !temProntuario ? "Registrar prontuário" : "Abrir prontuário";
 
@@ -388,6 +378,8 @@ export default function PainelDetalhesConsulta({
   const confirmacao = dadosConfirmacao(acaoConfirmacao || "concluir");
   const prontuarioDisponivel =
     consultaPermiteRegistroProntuario(consultaAtual);
+  const statusProntuarioEfetivo =
+    prontuarioStatus || consultaAtual.prontuario_status || null;
 
   const atualizarCachesConsulta = (consultaAtualizada: ConsultaAgenda) => {
     queryClient.setQueriesData(
@@ -604,7 +596,7 @@ export default function PainelDetalhesConsulta({
                 />
                 <LinhaProntuario
                   disponivel={prontuarioDisponivel}
-                  statusProntuario={prontuarioStatus}
+                  statusProntuario={statusProntuarioEfetivo}
                   onRegistrarProntuario={registrarProntuario}
                   onAbrirProntuario={() => onAbrirProntuario(consultaAtual)}
                 />
@@ -618,74 +610,6 @@ export default function PainelDetalhesConsulta({
                   {consultaAtual.observacoes || "Nenhuma observação registrada."}
                 </p>
               </div>
-            </section>
-
-            <section className="mt-5 rounded-2xl border border-[#9F64AF]/10 bg-white p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#F3EAF8] text-[#9F64AF]">
-                  <History size={16} />
-                </span>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800">
-                    Histórico operacional da consulta
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    Registro das alterações operacionais desta consulta.
-                  </p>
-                </div>
-              </div>
-              {consultaAtual.criado_em || consultaAtual.atualizado_em ? (
-                <div className="space-y-2">
-                  {consultaAtual.criado_em && (
-                    <div className="flex items-start gap-3 rounded-xl border border-[#9F64AF]/10 bg-[#FBF7FF] p-3">
-                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#9F64AF]">
-                        <History size={14} />
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">
-                          Consulta criada
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {dataHoraPtBr(consultaAtual.criado_em)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {consultaAtual.atualizado_em &&
-                    consultaAtual.atualizado_em !== consultaAtual.criado_em && (
-                      <div className="flex items-start gap-3 rounded-xl border border-[#9F64AF]/10 bg-[#FBF7FF] p-3">
-                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#9F64AF]">
-                          <History size={14} />
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">
-                            Consulta atualizada
-                          </p>
-                          <p className="mt-1 text-xs text-gray-500">
-                            {dataHoraPtBr(consultaAtual.atualizado_em)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-[#D9BCE8] bg-[#FBF7FF] p-4">
-                  <div className="flex items-start gap-3 text-sm text-gray-500">
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#9F64AF]">
-                      <History size={14} />
-                    </span>
-                    <div>
-                      <p className="font-medium text-gray-700">
-                        Nenhuma movimentação registrada para esta consulta.
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500">
-                        Alterações futuras aparecerão aqui em formato de linha
-                        do tempo.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </section>
 
             {podeOperar &&

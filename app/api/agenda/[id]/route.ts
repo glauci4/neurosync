@@ -88,7 +88,8 @@ export async function GET(_request: Request, context: RouteContext) {
   let connection: ConexaoMySQL | undefined;
   try {
     connection = await getConnection();
-    const possuiSalaId = await consultasPossuiSalaId(connection);
+    const colunasConsultas = await obterColunasConsultas(connection);
+    const possuiSalaId = colunasConsultas.has("sala_id");
     const [rows] = await connection.execute<RowDataPacket[]>(
       `SELECT c.id, c.clinica_id, c.paciente_id, p.nome AS paciente_nome,
               c.psicologo_id, u.nome AS psicologo_nome,
@@ -96,7 +97,25 @@ export async function GET(_request: Request, context: RouteContext) {
               ${possuiSalaId ? "s.nome" : "NULL"} AS sala_nome,
               c.data_consulta, c.horario_inicio, c.horario_fim,
               c.tipo_atendimento, c.tipo_outro, c.status, c.observacoes,
-              c.fechado_dia, c.criado_em, c.atualizado_em
+              c.fechado_dia, c.criado_em, c.atualizado_em,
+              (
+                SELECT rc.id
+                FROM registros_clinicos rc
+                WHERE rc.consulta_id = c.id
+                  AND rc.clinica_id = c.clinica_id
+                  AND rc.deleted_at IS NULL
+                ORDER BY FIELD(rc.status, 'assinado', 'finalizado', 'rascunho'), rc.atualizado_em DESC, rc.id DESC
+                LIMIT 1
+              ) AS prontuario_id,
+              (
+                SELECT rc.status
+                FROM registros_clinicos rc
+                WHERE rc.consulta_id = c.id
+                  AND rc.clinica_id = c.clinica_id
+                  AND rc.deleted_at IS NULL
+                ORDER BY FIELD(rc.status, 'assinado', 'finalizado', 'rascunho'), rc.atualizado_em DESC, rc.id DESC
+                LIMIT 1
+              ) AS prontuario_status
        FROM consultas c
        INNER JOIN pacientes p ON p.id = c.paciente_id
        INNER JOIN usuarios u ON u.id = c.psicologo_id

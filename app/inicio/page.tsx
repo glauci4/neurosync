@@ -6,7 +6,7 @@
 import { AlertTriangle, ArrowRight, BrushCleaning, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useAgenda } from "@/app/agenda/hooks/useAgenda";
+import { useAgenda, useFiltrosAgenda } from "@/app/agenda/hooks/useAgenda";
 import { useSidebar } from "@/app/context/SidebarContext";
 import { useAutenticacao } from "@/hooks/useAutenticacao";
 import AgendaHoje from "./components/AgendaHoje";
@@ -235,6 +235,7 @@ export default function Inicio() {
     isLoading: carregandoConsultas,
     error: erroConsultas,
   } = useAgenda(filtrosAgenda);
+  const { data: filtrosAgendaData } = useFiltrosAgenda();
 
   const consultasBase = useMemo(() => {
     const dados = ((agendaData?.data || []) as ConsultaAgendaAPI[]) || [];
@@ -257,17 +258,11 @@ export default function Inicio() {
   }, [consultasBase]);
 
   const opcoesSalas = useMemo(() => {
-    const mapa = new Map<string, string>();
-    for (const consulta of consultasBase) {
-      if (consulta.sala) {
-        mapa.set(consulta.sala, consulta.sala);
-      }
-    }
-    return Array.from(mapa.entries()).map(([valor, label]) => ({
-      valor,
-      label,
+    return (filtrosAgendaData?.data?.salas || []).map((sala) => ({
+      valor: String(sala.id),
+      label: sala.tipo ? `${sala.nome} (${sala.tipo})` : sala.nome,
     }));
-  }, [consultasBase]);
+  }, [filtrosAgendaData?.data?.salas]);
 
   const consultasVisiveis = useMemo(
     () => filtrarConsultas(consultasBase, filtros, busca),

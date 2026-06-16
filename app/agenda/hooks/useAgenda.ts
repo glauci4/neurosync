@@ -197,6 +197,8 @@ export function useDisponibilidadeAgenda(params?: DisponibilidadeParams) {
   });
 }
 
+const CHAVE_NOTIFICACOES = ["notificacoes"] as const;
+
 export function useCriarConsulta() {
   const queryClient = useQueryClient();
 
@@ -208,6 +210,7 @@ export function useCriarConsulta() {
       queryClient.invalidateQueries({
         queryKey: CHAVE_DISPONIBILIDADE_AGENDA,
       });
+      queryClient.invalidateQueries({ queryKey: CHAVE_NOTIFICACOES });
     },
   });
 }
@@ -222,6 +225,7 @@ export function useAtualizarConsulta() {
       queryClient.invalidateQueries({
         queryKey: CHAVE_DISPONIBILIDADE_AGENDA,
       });
+      queryClient.invalidateQueries({ queryKey: CHAVE_NOTIFICACOES });
     },
   });
 }
@@ -236,6 +240,7 @@ export function useExcluirConsulta() {
       queryClient.invalidateQueries({
         queryKey: CHAVE_DISPONIBILIDADE_AGENDA,
       });
+      queryClient.invalidateQueries({ queryKey: CHAVE_NOTIFICACOES });
     },
   });
 }

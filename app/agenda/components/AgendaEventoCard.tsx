@@ -12,6 +12,10 @@ interface AgendaEventoCardProps {
   tipoAtendimento?: string;
 }
 
+function primeiroNome(nome: string): string {
+  return nome.split(" ")[0] ?? nome;
+}
+
 export default function AgendaEventoCard({
   view,
   horario,
@@ -27,16 +31,16 @@ export default function AgendaEventoCard({
   if (view === "semana") {
     return (
       <div
-        className="flex h-full min-w-0 flex-col justify-center gap-0.5 text-left leading-tight"
+        className="flex h-full min-w-0 flex-col justify-center gap-0 overflow-hidden text-left leading-none"
         title={`${horario} - ${paciente} - ${sala} - ${config.texto}`}
       >
-        <div className="flex min-w-0 items-baseline gap-1">
-          <span className="shrink-0 text-[0.65rem] font-bold">{horario}</span>
-          <span className="min-w-0 truncate text-[0.65rem] font-semibold">
-            {paciente}
+        <div className="flex min-w-0 items-baseline gap-0.5">
+          <span className="shrink-0 text-[0.6rem] font-bold">{horario}</span>
+          <span className="min-w-0 truncate text-[0.6rem] font-semibold">
+            {primeiroNome(paciente)}
           </span>
         </div>
-        <span className="min-w-0 truncate text-[0.55rem] opacity-75">{sala}</span>
+        <span className="min-w-0 truncate text-[0.5rem] opacity-60">{sala}</span>
       </div>
     );
   }

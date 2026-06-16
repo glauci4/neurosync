@@ -64,13 +64,11 @@ export async function PUT(request: Request) {
         return Response.json({ error: "Formato inválido" }, { status: 400 });
       }
 
-      // Substitui integralmente a configuração pontual: cada nova aplicação
-      // mensal remove todas as aplicações pontuais anteriores da clínica,
-      // garantindo que o novo horário sobrescreva o antigo sem duplicidade.
+      const placeholders = datas.map(() => "?").join(", ");
       await connection.execute(
         `DELETE FROM horarios_funcionamento
-         WHERE clinica_id = ? AND tipo = 'funcionamento' AND data_especifica IS NOT NULL`,
-        [acesso.usuario.clinica_id],
+         WHERE clinica_id = ? AND tipo = 'funcionamento' AND data_especifica IN (${placeholders})`,
+        [acesso.usuario.clinica_id, ...datas],
       );
 
       for (const item of aplicacoesPontuais) {

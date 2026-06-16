@@ -506,6 +506,13 @@ export default function ModalNovaConsulta({
       return;
     }
 
+    if (
+      selecaoInicialToastRef.current !== null &&
+      !selecaoInicialToastRef.current.startsWith(`${pacienteSelecionadoId}:`)
+    ) {
+      selecaoInicialToastRef.current = null;
+    }
+
     const selecaoAtual = `${pacienteSelecionadoId}:${psicologoSelecionadoId || ""}`;
 
     if (selecaoInicialToastRef.current === null) {

@@ -53,6 +53,9 @@ export function useTransferirAcompanhamento() {
       queryClient.invalidateQueries({
         queryKey: ["prontuarios"],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["notificacoes"],
+      });
     },
   });
 }

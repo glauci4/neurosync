@@ -47,6 +47,7 @@ export function useAtualizarStatusAtendimento() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["pacientes"] });
       queryClient.invalidateQueries({ queryKey: ["paciente", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["notificacoes"] });
 
       const mensagem =
         variables.status === "fila_espera"

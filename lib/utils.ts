@@ -5,7 +5,9 @@
 // @param telefone - Telefone com apenas números
 // @returns Telefone formatado (ex: (11) 99999-9999)
 
-export function formatarTelefone(telefone: string): string {
+export function formatarTelefone(telefone?: string | null): string {
+  if (!telefone) return "Não informado";
+
   const numeros = telefone.replace(/\D/g, "");
 
   if (numeros.length === 11) {

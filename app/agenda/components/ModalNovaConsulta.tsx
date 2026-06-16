@@ -100,6 +100,7 @@ function ComboboxConsulta({
   placeholder,
   erro,
   onChange,
+  desabilitado,
 }: {
   label: string;
   obrigatorio?: boolean;
@@ -108,6 +109,7 @@ function ComboboxConsulta({
   placeholder: string;
   erro?: string;
   onChange: (valor: string) => void;
+  desabilitado?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
@@ -165,17 +167,20 @@ function ComboboxConsulta({
       </span>
       <button
         type="button"
-        onClick={() => setAberto((atual) => !atual)}
-        className={`flex h-11 w-full items-center justify-between gap-2 rounded-xl border bg-white/90 px-3 text-left text-sm text-gray-700 shadow-sm ${
-          erro ? "border-red-300" : "border-gray-200"
+        disabled={desabilitado}
+        onClick={() => !desabilitado && setAberto((atual) => !atual)}
+        className={`flex h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 text-left text-sm shadow-sm ${
+          desabilitado
+            ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400"
+            : `bg-white/90 text-gray-700 ${erro ? "border-red-300" : "border-gray-200"}`
         }`}
       >
-        <span className={selecionada ? "truncate" : "truncate text-gray-400"}>
+        <span className={selecionada && !desabilitado ? "truncate" : "truncate text-gray-400"}>
           {selecionada?.label || placeholder}
         </span>
         <ChevronDown
           size={16}
-          className={`shrink-0 text-gray-400 transition ${aberto ? "rotate-180" : ""}`}
+          className={`shrink-0 text-gray-400 transition ${aberto && !desabilitado ? "rotate-180" : ""}`}
         />
       </button>
       <MensagemErro mensagem={erro} />
@@ -847,6 +852,7 @@ export default function ModalNovaConsulta({
               placeholder="Selecione o(a) psicólogo(a)"
               erro={erros.psicologo_id}
               onChange={(valor) => atualizarCampo("psicologo_id", valor)}
+              desabilitado={pacienteTemResponsavel && modo === "criar"}
             />
             <ComboboxConsulta
               label="Sala"

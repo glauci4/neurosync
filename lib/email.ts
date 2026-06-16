@@ -44,17 +44,23 @@ export async function enviarEmailRecuperacao(
     subject: "Recuperação de Senha - NeuroSync",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #9F64AF;">NeuroSync</h1>
-        <h2>Olá, ${nome}!</h2>
+        <div style="text-align: center;">
+          <h1 style="font-family: 'Brush Script MT', 'Lucida Handwriting', cursive; font-size: 48px; font-weight: normal; color: #9F64AF; margin: 0 0 8px 0; line-height: 1.1;">NeuroSync</h1>
+          <p style="margin: 0 0 16px 0;">Olá, ${nome}!</p>
+        </div>
         <p>Recebemos uma solicitação para redefinir sua senha.</p>
         <p>Clique no link abaixo para criar uma nova senha:</p>
-        <a href="${linkRecuperacao}" style="background-color: #9F64AF; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0;">
-          Redefinir Senha
-        </a>
+        <div style="text-align: center;">
+          <a href="${linkRecuperacao}" style="background-color: #9F64AF; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0;">
+            Redefinir Senha
+          </a>
+        </div>
         <p>Este link é válido por 1 hora.</p>
         <p>Se você não solicitou esta alteração, ignore este e-mail.</p>
-        <hr />
-        <p style="font-size: 12px; color: #666;">NeuroSync - Plataforma de agendamento para clínicas psicológicas</p>
+        <div style="text-align: center;">
+          <hr />
+          <p style="font-size: 12px; color: #666;">NeuroSync - Plataforma de agendamento para clínicas psicológicas</p>
+        </div>
       </div>
     `,
   };

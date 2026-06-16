@@ -34,12 +34,28 @@ function dataValida(data: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(data);
 }
 
-function dataHojeISO() {
-  const hoje = new Date();
-  const ano = hoje.getFullYear();
-  const mes = String(hoje.getMonth() + 1).padStart(2, "0");
-  const dia = String(hoje.getDate()).padStart(2, "0");
-  return `${ano}-${mes}-${dia}`;
+function momentoLocalSP() {
+  const agora = new Date();
+  const partes = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(agora);
+
+  const get = (tipo: string) =>
+    partes.find((p) => p.type === tipo)?.value ?? "00";
+
+  const hora = Number(get("hour")) % 24;
+  const minuto = Number(get("minute"));
+
+  return {
+    dataISO: `${get("year")}-${get("month")}-${get("day")}`,
+    minutosDia: hora * 60 + minuto,
+  };
 }
 
 function horaParaMinutos(hora: string) {
@@ -74,9 +90,7 @@ function gerarSlotsDoExpediente(
   const duracaoAtendimento = DURACAO_ATENDIMENTO_MINUTOS;
   const duracaoBloco = DURACAO_BLOCO_AGENDA_MINUTOS;
   const passo = 60;
-  const hoje = dataHojeISO();
-  const agora = new Date();
-  const minutoAtual = agora.getHours() * 60 + agora.getMinutes();
+  const { dataISO: hoje, minutosDia: minutoAtual } = momentoLocalSP();
   const dataHoje = dataConsulta === hoje;
 
   for (
@@ -319,7 +333,7 @@ export async function GET(request: Request) {
     );
   }
 
-  if (dataConsulta < dataHojeISO()) {
+  if (dataConsulta < momentoLocalSP().dataISO) {
     return Response.json(
       { error: "Não é possível consultar disponibilidade para data passada." },
       { status: 400 },

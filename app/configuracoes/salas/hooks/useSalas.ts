@@ -1,3 +1,5 @@
+//neurosync-main\app\configuracoes\salas\hooks\useSalas.ts
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   atualizarSala,
@@ -50,6 +52,8 @@ export function useSalas() {
       queryClient.invalidateQueries({
         queryKey: CHAVES_SALAS.ativasParaAgenda,
       }),
+      // Propaga mudanças de sala para o cache de filtros usado pelo ModalNovaConsulta
+      queryClient.invalidateQueries({ queryKey: ["agenda", "filtros"] }),
     ]);
 
   const criar = useMutation({
@@ -65,11 +69,37 @@ export function useSalas() {
 
   const inativar = useMutation({
     mutationFn: inativarSala,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: CHAVES_SALAS.todas });
+      const anterior = queryClient.getQueryData<Sala[]>(CHAVES_SALAS.todas);
+      queryClient.setQueryData<Sala[]>(CHAVES_SALAS.todas, (salas) =>
+        salas?.map((s) => (s.id === id ? { ...s, ativo: false } : s)) ?? [],
+      );
+      return { anterior };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.anterior) {
+        queryClient.setQueryData(CHAVES_SALAS.todas, context.anterior);
+      }
+    },
     onSuccess: invalidarSalas,
   });
 
   const reativar = useMutation({
     mutationFn: reativarSala,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: CHAVES_SALAS.todas });
+      const anterior = queryClient.getQueryData<Sala[]>(CHAVES_SALAS.todas);
+      queryClient.setQueryData<Sala[]>(CHAVES_SALAS.todas, (salas) =>
+        salas?.map((s) => (s.id === id ? { ...s, ativo: true } : s)) ?? [],
+      );
+      return { anterior };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.anterior) {
+        queryClient.setQueryData(CHAVES_SALAS.todas, context.anterior);
+      }
+    },
     onSuccess: invalidarSalas,
   });
 

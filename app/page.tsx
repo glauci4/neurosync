@@ -122,7 +122,11 @@ export default function Home() {
 
         {/* Conteúdo do formulário, alternando entre login e cadastro com animação suave */}
         <div className="transition-all duration-300">
-          {abaAtiva === "login" ? <FormularioLogin /> : <FormularioCadastro />}
+          {abaAtiva === "login" ? (
+            <FormularioLogin />
+          ) : (
+            <FormularioCadastro onCadastroSucesso={() => setAbaAtiva("login")} />
+          )}
         </div>
       </div>
     </div>

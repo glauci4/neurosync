@@ -24,6 +24,23 @@ export default function AgendaEventoCard({
   const Icone = config.icone;
   const compacto = view === "mes";
 
+  if (view === "semana") {
+    return (
+      <div
+        className="flex h-full min-w-0 flex-col justify-center gap-0.5 text-left leading-tight"
+        title={`${horario} - ${paciente} - ${sala} - ${config.texto}`}
+      >
+        <div className="flex min-w-0 items-baseline gap-1">
+          <span className="shrink-0 text-[0.65rem] font-bold">{horario}</span>
+          <span className="min-w-0 truncate text-[0.65rem] font-semibold">
+            {paciente}
+          </span>
+        </div>
+        <span className="min-w-0 truncate text-[0.55rem] opacity-75">{sala}</span>
+      </div>
+    );
+  }
+
   if (compacto) {
     return (
       <div
@@ -56,7 +73,7 @@ export default function AgendaEventoCard({
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="min-w-0 truncate text-[11px] opacity-90">{sala}</span>
         <span
-          className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold transition ${config.badge}`}
+          className={`min-w-0 overflow-hidden truncate rounded-full border px-1.5 py-0.5 text-[10px] font-semibold transition ${config.badge}`}
         >
           {config.texto}
         </span>

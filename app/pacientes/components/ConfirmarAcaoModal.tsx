@@ -4,7 +4,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArchiveRestore, Trash2, UserMinus, X } from "lucide-react";
+import { ArchiveRestore, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { MdOutlineNoMeetingRoom } from "react-icons/md";
+import { createPortal } from "react-dom";
 
 interface ConfirmarAcaoModalProps {
   isOpen: boolean;
@@ -25,12 +28,15 @@ export default function ConfirmarAcaoModal({
   confirmando = false,
   tipo = "inativar",
 }: ConfirmarAcaoModalProps) {
-  if (!isOpen) return null;
+  const [montado, setMontado] = useState(false);
+  useEffect(() => { setMontado(true); }, []);
+
+  if (!isOpen || !montado) return null;
 
   // Configurações de ícone e texto conforme o tipo (todas com a mesma cor lilás)
   const config = {
     inativar: {
-      icone: <UserMinus size={28} className="text-[#9F64AF]" />,
+      icone: <MdOutlineNoMeetingRoom size={28} className="text-[#9F64AF]" />,
       textoBotao: "Inativar",
     },
     reativar: {
@@ -45,7 +51,7 @@ export default function ConfirmarAcaoModal({
 
   const { icone, textoBotao } = config[tipo];
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay escuro com blur */}
       <motion.div
@@ -97,6 +103,7 @@ export default function ConfirmarAcaoModal({
           </div>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body,
   );
 }

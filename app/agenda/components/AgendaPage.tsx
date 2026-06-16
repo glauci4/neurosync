@@ -334,10 +334,7 @@ export default function AgendaPage() {
   const [origemDetalhesConsulta, setOrigemDetalhesConsulta] = useState<
     "consultas-dia" | null
   >(null);
-  const [consultasDiaSelecionado, setConsultasDiaSelecionado] = useState<{
-    data: string;
-    consultas: ConsultaAgenda[];
-  } | null>(null);
+  const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null);
   const [valoresIniciaisConsulta, setValoresIniciaisConsulta] = useState<
     | {
         data_consulta?: string;
@@ -369,6 +366,15 @@ export default function AgendaPage() {
   const { data: prontuariosData } = useProntuarios();
 
   const consultas = (agendaData?.data || []) as ConsultaAgenda[];
+  const consultasDia = useMemo(
+    () =>
+      diaSelecionado
+        ? consultas.filter(
+            (c) => String(c.data_consulta).slice(0, 10) === diaSelecionado,
+          )
+        : [],
+    [diaSelecionado, consultas],
+  );
   const prontuarioConsultaSelecionada = useMemo<
     RegistroClinico | null
   >(() => {
@@ -696,7 +702,7 @@ export default function AgendaPage() {
       horario_fim?: string;
       paciente_id?: number;
     }) => {
-      setConsultasDiaSelecionado(null);
+      setDiaSelecionado(null);
       setModoModalConsulta("criar");
       setValoresIniciaisConsulta(valores);
       setModalConsultaAberto(true);
@@ -766,7 +772,7 @@ export default function AgendaPage() {
     consulta: ConsultaAgenda,
     modo: "editar" | "remarcar",
   ) => {
-    setConsultasDiaSelecionado(null);
+    setDiaSelecionado(null);
     setConsultaSelecionada(null);
     setModoModalConsulta(modo);
     setValoresIniciaisConsulta({
@@ -941,7 +947,7 @@ export default function AgendaPage() {
 
                     // Se houver consultas no dia, sempre abrir o modal de consultas do dia
                     if (params?.consultas && params.consultas.length > 0) {
-                      setConsultasDiaSelecionado(params);
+                      setDiaSelecionado(params.data);
                       return;
                     }
 
@@ -982,10 +988,10 @@ export default function AgendaPage() {
       />
 
       <ModalConsultasDia
-        aberto={Boolean(consultasDiaSelecionado)}
-        data={consultasDiaSelecionado?.data || ""}
-        consultas={consultasDiaSelecionado?.consultas || []}
-        onClose={() => setConsultasDiaSelecionado(null)}
+        aberto={Boolean(diaSelecionado)}
+        data={diaSelecionado || ""}
+        consultas={consultasDia}
+        onClose={() => setDiaSelecionado(null)}
         atalhosBloqueados={Boolean(
           consultaSelecionada && origemDetalhesConsulta === "consultas-dia",
         )}

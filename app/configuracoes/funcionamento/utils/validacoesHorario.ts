@@ -48,13 +48,15 @@ export function validarIntervalo(
     erros.hora_fim = "Inválido";
   }
 
-  // Se qualquer parte do intervalo foi preenchida, ambos se tornam obrigatórios
+  // Se ambos os campos do intervalo estiverem vazios, considera-se que o dia
+  // não possui intervalo — nenhum erro é gerado. Apenas quando um deles está
+  // preenchido e o outro não é que ambos se tornam obrigatórios.
   const temParcial = intervaloInicio || intervaloFim;
   const inicioIntervaloValido = horarioValido(intervaloInicio);
   const fimIntervaloValido = horarioValido(intervaloFim);
   if (temParcial) {
-    if (!inicioIntervaloValido) erros.intervalo_inicio = "Obrigatório";
-    if (!fimIntervaloValido) erros.intervalo_fim = "Obrigatório";
+    if (!inicioIntervaloValido) erros.intervalo_inicio = "Informe o início e o fim do intervalo.";
+    if (!fimIntervaloValido) erros.intervalo_fim = "Informe o início e o fim do intervalo.";
   }
 
   if (inicioIntervaloValido && fimIntervaloValido) {
@@ -62,15 +64,15 @@ export function validarIntervalo(
     const intervaloFimSeguro = intervaloFim as string;
 
     if (intervaloInicioSeguro >= intervaloFimSeguro) {
-      erros.intervalo_inicio = "Inválido";
-      erros.intervalo_fim = "Inválido";
+      // Início do intervalo deve ser estritamente menor que o fim
+      erros.intervalo_inicio = "O início do intervalo deve ser antes do fim do intervalo.";
     }
-    // Intervalo deve estar contido no expediente (não pode ser igual)
+    // Intervalo deve estar contido no expediente (não pode ser igual aos limites)
     if (inicio && intervaloInicioSeguro <= inicio) {
-      erros.intervalo_inicio = "Deve ser após início";
+      erros.intervalo_inicio = "O intervalo deve estar dentro do horário de funcionamento.";
     }
     if (fim && intervaloFimSeguro >= fim) {
-      erros.intervalo_fim = "Deve ser antes do fim";
+      erros.intervalo_fim = "O intervalo deve estar dentro do horário de funcionamento.";
     }
   }
 

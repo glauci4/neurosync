@@ -381,47 +381,44 @@ export default function PainelDetalhesConsulta({
   const statusProntuarioEfetivo =
     prontuarioStatus || consultaAtual.prontuario_status || null;
 
-  const atualizarCachesConsulta = (consultaAtualizada: ConsultaAgenda) => {
+  const aplicarUpdateOtimista = (consultaAtualizada: ConsultaAgenda) => {
     queryClient.setQueriesData(
       { queryKey: CHAVE_AGENDA, exact: false },
-      (antigo: unknown) => {
-        if (!antigo || typeof antigo !== "object") return antigo;
+      (cacheAntigo: unknown) => {
+        if (!cacheAntigo || typeof cacheAntigo !== "object") return cacheAntigo;
 
-        const dados = antigo as {
+        const cache = cacheAntigo as {
           data?: ConsultaAgenda[] | { data?: ConsultaAgenda[] };
         };
 
-        if (Array.isArray(dados.data)) {
+        if (Array.isArray(cache.data)) {
           return {
-            ...dados,
-            data: dados.data.map((item) =>
+            ...cache,
+            data: cache.data.map((item) =>
               item.id === consultaAtualizada.id ? consultaAtualizada : item,
             ),
           };
         }
 
         if (
-          dados.data &&
-          typeof dados.data === "object" &&
-          Array.isArray(dados.data.data)
+          cache.data &&
+          typeof cache.data === "object" &&
+          Array.isArray(cache.data.data)
         ) {
           return {
-            ...dados,
+            ...cache,
             data: {
-              ...dados.data,
-              data: dados.data.data.map((item) =>
+              ...cache.data,
+              data: cache.data.data.map((item) =>
                 item.id === consultaAtualizada.id ? consultaAtualizada : item,
               ),
             },
           };
         }
 
-        return antigo;
+        return cacheAntigo;
       },
     );
-
-    queryClient.invalidateQueries({ queryKey: CHAVE_AGENDA });
-    queryClient.invalidateQueries({ queryKey: CHAVE_PRONTUARIOS });
   };
 
   const registrarProntuario = () => {
@@ -463,24 +460,30 @@ export default function PainelDetalhesConsulta({
   const confirmarMudancaStatus = async () => {
     if (!acaoConfirmacao) return;
 
-    const dados = dadosConfirmacao(acaoConfirmacao);
+    const dadosAcao = dadosConfirmacao(acaoConfirmacao);
+    const consultaAtualizada = {
+      ...consultaAtual,
+      status: dadosAcao.status,
+    } as ConsultaAgenda;
+
+    // Atualiza painel e calendário imediatamente, sem esperar o servidor
+    setConsultaExibida(consultaAtualizada);
+    aplicarUpdateOtimista(consultaAtualizada);
 
     try {
-      // Mudanças críticas de status passam por confirmação e pela mutation
-      // central da Agenda, mantendo cache e regras futuras de prontuário.
       await atualizarConsulta.mutateAsync({
         id: consultaAtual.id,
-        dados: { status: dados.status },
+        dados: { status: dadosAcao.status },
       });
-      const consultaAtualizada = {
-        ...consultaAtual,
-        status: dados.status,
-      } as ConsultaAgenda;
-      setConsultaExibida(consultaAtualizada);
-      atualizarCachesConsulta(consultaAtualizada);
-      toast.success(dados.toast);
+      // onSuccess já invalida ["agenda"] e ["agenda-disponibilidade"]
+      // Invalida prontuários pois o status da consulta afeta o que pode ser registrado
+      queryClient.invalidateQueries({ queryKey: CHAVE_PRONTUARIOS });
+      toast.success(dadosAcao.toast);
       setAcaoConfirmacao(null);
     } catch (error) {
+      // Rollback: reverte painel e força refetch para restaurar dados reais
+      setConsultaExibida(consultaAtual);
+      queryClient.invalidateQueries({ queryKey: CHAVE_AGENDA });
       const mensagem =
         error instanceof Error ? error.message : "Erro ao atualizar consulta";
       toast.error(mensagem);

@@ -84,24 +84,18 @@ export default function ExcecoesFuncionamento({
   >("30");
 
   const hoje = obterDataLocalISO(new Date());
-  const feriadosOficiaisMapa = useMemo(
-    () =>
-      new Map(feriadosOficiais.map((feriado) => [feriado.date, feriado.name])),
-    [feriadosOficiais],
-  );
 
-  // excecoesClinica: usado para listagem (apenas ativos, futuros e sem duplicatas com feriados oficiais)
+  // excecoesClinica: todos os registros ativos e futuros, incluindo feriados cadastrados pela clínica
   const excecoesClinica = useMemo(
     () =>
       excecoes
         .filter(
           (e) =>
             e.ativo !== 0 &&
-            !(e.tipo === "feriado" && feriadosOficiaisMapa.has(e.data_especifica)) &&
             (e.data_especifica >= hoje || Boolean(e.data_fim && e.data_fim >= hoje)),
         )
         .sort((a, b) => a.data_especifica.localeCompare(b.data_especifica)),
-    [excecoes, feriadosOficiaisMapa, hoje],
+    [excecoes, hoje],
   );
 
   // feriados oficiais futuros (usados na seção de feriados)
@@ -177,6 +171,7 @@ export default function ExcecoesFuncionamento({
     "todos",
     "ferias",
     "bloqueio",
+    "feriado",
     "excecao",
   ];
 
@@ -188,7 +183,9 @@ export default function ExcecoesFuncionamento({
         ? "Nenhuma férias cadastrada."
         : filtroTipo === "bloqueio"
           ? "Nenhum bloqueio cadastrado."
-          : "Nenhum horário especial configurado.";
+          : filtroTipo === "feriado"
+            ? "Nenhum feriado cadastrado."
+            : "Nenhum horário especial configurado.";
 
   return (
     <section

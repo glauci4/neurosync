@@ -115,6 +115,15 @@ function criarDataLocalISO(dataISO: string) {
   return new Date(ano, mes - 1, dia);
 }
 
+function periodsOverlap(
+  aInicio: string,
+  aFim: string,
+  bInicio: string,
+  bFim: string,
+): boolean {
+  return aInicio <= bFim && aFim >= bInicio;
+}
+
 function formatarResumoConflito(dataISO: string, total: number) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataISO)) {
     return `Data inválida — ${total} ${total === 1 ? "consulta" : "consultas"}`;
@@ -174,6 +183,7 @@ function obterPlaceholderObservacao(tipo: TipoExcecao) {
 export default function ModalNovaExcecao({
   onClose,
   onSalvar,
+  excecoesExistentes,
 }: ModalNovaExcecaoProps) {
   const hoje = obterDataLocalISO(new Date());
   const [tipo, setTipo] = useState<TipoExcecao>("feriado");
@@ -344,6 +354,49 @@ export default function ModalNovaExcecao({
     ? conflitosQuery.data
     : null;
 
+  // Verifica conflito de período entre férias e bloqueios usando os dados locais,
+  // sem precisar chamar a API.
+  const conflitoPeriodo = useMemo(() => {
+    if (!excecoesExistentes || !dataInicio) return null;
+    if ((tipo === "bloqueio" || tipo === "ferias") && !dataFim) return null;
+
+    const fim = dataFim || dataInicio;
+
+    if (tipo === "bloqueio") {
+      const encontrou = excecoesExistentes.find(
+        (e) =>
+          e.tipo === "ferias" &&
+          e.ativo !== 0 &&
+          periodsOverlap(
+            dataInicio,
+            fim,
+            e.data_especifica,
+            e.data_fim || e.data_especifica,
+          ),
+      );
+      if (encontrou)
+        return "Não é possível cadastrar bloqueio em um período já marcado como férias.";
+    }
+
+    if (tipo === "ferias") {
+      const encontrou = excecoesExistentes.find(
+        (e) =>
+          e.tipo === "bloqueio" &&
+          e.ativo !== 0 &&
+          periodsOverlap(
+            dataInicio,
+            fim,
+            e.data_especifica,
+            e.data_fim || e.data_especifica,
+          ),
+      );
+      if (encontrou)
+        return "Já existe um bloqueio cadastrado neste período.";
+    }
+
+    return null;
+  }, [excecoesExistentes, tipo, dataInicio, dataFim]);
+
   const formatarObservacaoFeriado = (nome: string) => {
     const nomeLimpo = nome.replace(/^feriado\s*:?\s*/i, "").trim();
     return `Feriado: ${nomeLimpo || nome}`;
@@ -437,6 +490,13 @@ export default function ModalNovaExcecao({
     }
     if (errosVisuais.descricao) {
       toast.error("Informe uma observação válida.", {
+        icon: <MdErrorOutline size={16} className="text-red-600" />,
+        className: "border-red-200 bg-red-50 text-red-600",
+      });
+      return;
+    }
+    if (conflitoPeriodo) {
+      toast.error(conflitoPeriodo, {
         icon: <MdErrorOutline size={16} className="text-red-600" />,
         className: "border-red-200 bg-red-50 text-red-600",
       });
@@ -749,6 +809,14 @@ export default function ModalNovaExcecao({
               </p>
             </div>
           </form>
+          {conflitoPeriodo ? (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div className="flex items-start gap-2">
+                <MdErrorOutline size={14} className="mt-0.5 shrink-0 text-amber-600" />
+                <p>{conflitoPeriodo}</p>
+              </div>
+            </div>
+          ) : null}
           {conflitoExcecao ? (
             <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
               <div className="flex items-start gap-2">
@@ -782,7 +850,7 @@ export default function ModalNovaExcecao({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={Boolean(conflitoExcecao?.temConflitos)}
+              disabled={Boolean(conflitoExcecao?.temConflitos) || Boolean(conflitoPeriodo)}
               className="px-4 py-2 text-sm text-white bg-[#9F64AF] rounded-xl hover:bg-[#8B509B] transition disabled:opacity-50 shadow-sm"
             >
               Adicionar

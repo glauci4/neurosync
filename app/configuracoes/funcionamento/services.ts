@@ -137,7 +137,10 @@ export async function validarConflitosExcecao(
  * Remove uma exceção pelo ID.
  */
 export async function excluirExcecao(id: number): Promise<void> {
-  await fetch(`/api/clinica/funcionamento/excecoes/${id}`, {
+  const res = await fetch(`/api/clinica/funcionamento/excecoes/${id}`, {
     method: "DELETE",
   });
+  if (!res.ok) {
+    throw new Error("Não foi possível excluir a exceção.");
+  }
 }

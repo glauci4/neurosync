@@ -69,7 +69,7 @@ export interface DisponibilidadeAgenda {
     fim: string;
     intervalo_inicio: string | null;
     intervalo_fim: string | null;
-    origem: "pontual" | "especial";
+    origem: "pontual" | "especial" | "semanal";
   };
   bloqueiosParciais: Array<{
     id: number;
@@ -422,6 +422,16 @@ export async function obterDisponibilidadeAgenda(
     };
   }
 
+  const feriadoClinica = excecoes.find((e) => e.tipo === "feriado");
+  if (feriadoClinica) {
+    return {
+      disponivel: false,
+      motivo: "Clínica fechada por feriado.",
+      codigo: "feriado",
+      bloqueiosParciais: [],
+    };
+  }
+
   const bloqueioTotal = excecoes.find(
     (e) => e.tipo === "bloqueio" && !e.hora_inicio && !e.hora_fim,
   );
@@ -459,8 +469,35 @@ export async function obterDisponibilidadeAgenda(
   );
 
   const funcionamentoPontual = funcionamentoPontualRows[0];
-  const expedienteBase = horarioEspecial || funcionamentoPontual;
-  const origem = horarioEspecial ? "especial" : "pontual";
+
+  // Fallback semanal: se não há funcionamento pontual nem horário especial para
+  // esta data, tenta o funcionamento semanal recorrente (data_especifica IS NULL)
+  // correspondente ao dia da semana. Isso garante que clínicas que só configuram
+  // o horário semanal consigam exibir disponibilidade na agenda.
+  let funcionamentoSemanal: RowDataPacket | undefined;
+  if (!funcionamentoPontual && !horarioEspecial) {
+    const [ano, mes, dia] = dataConsulta.split("-").map(Number);
+    const diaSemana = new Date(ano, mes - 1, dia).getDay(); // 0 = Domingo … 6 = Sábado
+
+    const [semanalRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id, hora_inicio, hora_fim, intervalo_inicio, intervalo_fim, ativo
+       FROM horarios_funcionamento
+       WHERE clinica_id = ? AND tipo = 'funcionamento' AND ativo = 1
+         AND data_especifica IS NULL AND dia_semana = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [clinicaId, diaSemana],
+    );
+    funcionamentoSemanal = semanalRows[0];
+  }
+
+  const expedienteBase =
+    horarioEspecial || funcionamentoPontual || funcionamentoSemanal;
+  const origem = horarioEspecial
+    ? "especial"
+    : funcionamentoPontual
+      ? "pontual"
+      : "semanal";
   const inicioExpediente = horaCurta(expedienteBase?.hora_inicio);
   const fimExpediente = horaCurta(expedienteBase?.hora_fim);
   const intervaloInicio = horaCurta(expedienteBase?.intervalo_inicio);
@@ -485,7 +522,7 @@ export async function obterDisponibilidadeAgenda(
     fim: fimExpediente,
     intervalo_inicio: intervaloInicio,
     intervalo_fim: intervaloFim,
-    origem: origem as "pontual" | "especial",
+    origem: origem as "pontual" | "especial" | "semanal",
   };
 
   if (!inicioConsulta || !fimConsulta) {

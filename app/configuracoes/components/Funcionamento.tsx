@@ -1,4 +1,4 @@
-// app/configuracoes/components/Funcionamento.tsx
+﻿// app/configuracoes/components/Funcionamento.tsx
 // Orquestrador do módulo de Funcionamento com glassmorphism, calendário, pendências e avisos.
 // Agora com bloqueio apenas em aplicações mensais (handleAplicarMensal),
 // toast de pendências (estilo amarelo com ícone FiAlertTriangle),
@@ -212,63 +212,66 @@ export default function Funcionamento({
     primeiraCarga.current = false;
   }, [dataSemanal]);
 
-  // Dias da semana (0=domingo..6=sábado) que possuem QUALQUER aplicação mensal
-  // futura. Usado apenas para trocar o texto do dia fechado no editor semanal,
-  // sem bloquear a edição.
+  // Dias da semana (0=domingo..6=sábado) que possuem QUALQUER registro mensal/pontual,
+  // independente de data. Usado apenas para exibir "Funcionamento definido mensalmente"
+  // no CardHorarioDia quando o dia semanal está inativo, sem bloquear a edição.
   const diasComMensal = useMemo(() => {
     if (!horariosPontuais || horariosPontuais.length === 0) return [] as number[];
-    const hoje = new Date();
-    const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
     const dias = new Set<number>();
     for (const h of horariosPontuais) {
       if (!h.data_especifica) continue;
-      if (h.data_especifica < hojeISO) continue;
-      const [ano, mes, dia] = h.data_especifica.split("-").map(Number);
-      dias.add(new Date(ano, mes - 1, dia).getDay());
+      const dataISO = String(h.data_especifica || "").slice(0, 10);
+      if (!dataISO) continue;
+      const [ano, mes, dia] = dataISO.split("-").map(Number);
+      if (!ano || !mes || !dia) continue;
+      const diaSemana = new Date(ano, mes - 1, dia).getDay();
+      if (diaSemana < 0 || diaSemana > 6) continue;
+      dias.add(diaSemana);
     }
     return Array.from(dias);
   }, [horariosPontuais]);
 
-  // Existe qualquer aplicação mensal futura configurada? (independe do mês exibido)
-  const temMensalConfigurado = diasComMensal.length > 0;
+  // Existe aplicação mensal com datas presentes ou futuras? (independe do mês exibido)
+  // Usado exclusivamente para controlar o toast de aviso mensal x semanal.
+  const temMensalConfigurado = useMemo(() => {
+    const hoje = new Date();
+    const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+    return horariosPontuais.some(
+      (h) => Boolean(h.data_especifica) && h.data_especifica! >= hojeISO,
+    );
+  }, [horariosPontuais]);
 
   // A edição semanal nunca é bloqueada por aplicações mensais (estado `bloqueado`
   // permanece sempre false). Salvar o semanal preserva as aplicações pontuais,
   // pois o backend só remove registros sem data específica.
 
-  // Aviso (toast) informando que há funcionamento mensal configurado, exibido uma
-  // única vez quando o usuário entra na aba semanal e existe mensal. A edição
-  // permanece liberada.
+  // Controla se o aviso de mensal vigente já foi exibido nesta sessão de edição.
+  // Resetado após salvar para que a próxima edição possa exibir o aviso novamente.
   const avisoMensalExibido = useRef(false);
-  useEffect(() => {
-    if (
-      abaPrincipal === "semanal" &&
-      temMensalConfigurado &&
-      !avisoMensalExibido.current
-    ) {
-      avisoMensalExibido.current = true;
-      toast.info(
-        "Há um funcionamento mensal configurado. Você pode editar os horários semanais normalmente — as datas com aplicação mensal serão preservadas ao salvar.",
-        {
-          id: TOAST_MENSAL_VIGENTE_ID,
-          icon: <AlertCircle size={16} className="text-amber-600" />,
-          ...TOAST_AVISO,
-          duration: 8000,
-        },
-      );
-    }
-  }, [abaPrincipal, temMensalConfigurado]);
 
   // =========================================================================
-  // Detecção de pendências
+  // Detecção de pendências e aviso de mensal vigente
   // =========================================================================
   useEffect(() => {
     if (!primeiraCarga.current) {
-      setAlteracoesPendentes(
-        !listasHorariosIguais(horarios, horariosOriginais),
-      );
+      const temMudancas = !listasHorariosIguais(horarios, horariosOriginais);
+      setAlteracoesPendentes(temMudancas);
+      // Exibe o aviso apenas quando o usuário realmente edita algo no semanal,
+      // nunca ao carregar a tela.
+      if (temMudancas && temMensalConfigurado && !avisoMensalExibido.current) {
+        avisoMensalExibido.current = true;
+        toast(
+          "Atenção: existe um funcionamento mensal configurado. O horário semanal salvo irá prevalecer sobre o mensal apenas nesta semana.",
+          {
+            id: TOAST_MENSAL_VIGENTE_ID,
+            icon: <AlertCircle size={16} className="text-[#9F64AF]" />,
+            ...TOAST_NEUROSYNC,
+            duration: 8000,
+          },
+        );
+      }
     }
-  }, [horarios, horariosOriginais]);
+  }, [horarios, horariosOriginais, temMensalConfigurado]);
 
   const excecoesVisiveis = useMemo(() => {
     const remocoes = new Set(idsExcecoesMarcadasRemocao);
@@ -386,44 +389,78 @@ export default function Funcionamento({
     return true;
   };
 
-  // Botão “Aplicar dias úteis” – sem bloqueio (apenas aplica e mantém edição liberada)
+  // Botão "Aplicar dias úteis": ativa e preenche o horário de referência em
+  // todos os dias úteis (Seg–Sex), inclusive nos que estiverem inativos.
   const aplicarDiasUteis = () => {
     const diaRef = horarios.find(temHorarioPreenchido);
     if (!diaRef) {
       toast.error(
-        "Preencha os horários de pelo menos um dia ativo antes de aplicar",
+        "Preencha os horários de pelo menos um dia ativo antes de aplicar.",
       );
       return;
     }
-    const diasUteisAtivos = horarios.filter(
-      (h) => h.ativo && DIAS_UTEIS.includes(h.dia_semana),
+
+    const errosRef = validarIntervalo(
+      normalizarHorario(diaRef.hora_inicio),
+      normalizarHorario(diaRef.hora_fim),
+      normalizarHorarioNullable(diaRef.intervalo_inicio),
+      normalizarHorarioNullable(diaRef.intervalo_fim),
+      diaRef.ativo,
     );
-    const todosIguais = diasUteisAtivos.every(
+    if (Object.keys(errosRef).length > 0) {
+      toast.error(
+        "Corrija os erros no horário de referência antes de aplicar.",
+      );
+      return;
+    }
+
+    const { hora_inicio, hora_fim, intervalo_inicio, intervalo_fim } = diaRef;
+
+    const diasUteis = horarios.filter((h) => DIAS_UTEIS.includes(h.dia_semana));
+    const todosJaAplicados = diasUteis.every(
       (h) =>
-        h.hora_inicio === diaRef.hora_inicio &&
-        h.hora_fim === diaRef.hora_fim &&
-        h.intervalo_inicio === diaRef.intervalo_inicio &&
-        h.intervalo_fim === diaRef.intervalo_fim,
+        h.ativo &&
+        normalizarHorario(h.hora_inicio) === normalizarHorario(hora_inicio) &&
+        normalizarHorario(h.hora_fim) === normalizarHorario(hora_fim) &&
+        normalizarHorarioNullable(h.intervalo_inicio) ===
+          normalizarHorarioNullable(intervalo_inicio) &&
+        normalizarHorarioNullable(h.intervalo_fim) ===
+          normalizarHorarioNullable(intervalo_fim),
     );
-    if (todosIguais && diasUteisAtivos.length > 0) {
+    if (todosJaAplicados) {
       toast.info(
         "Os dias úteis já estão configurados com esses horários.",
         TOAST_NEUROSYNC,
       );
       return;
     }
-    if (aplicarEmMassa("uteis")) {
-      toast.success("Horários aplicados aos dias úteis", TOAST_NEUROSYNC);
-    }
+
+    setHorarios((prev) =>
+      prev.map((h) => {
+        if (!DIAS_UTEIS.includes(h.dia_semana)) return h;
+        return {
+          ...h,
+          ativo: true,
+          hora_inicio,
+          hora_fim,
+          intervalo_inicio,
+          intervalo_fim,
+        };
+      }),
+    );
+    toast.success(
+      "Horário aplicado aos dias úteis com sucesso.",
+      TOAST_NEUROSYNC,
+    );
   };
 
-  // Botão “Fechar fins de semana” – sem bloqueio
+  // Botão "Fechar fins de semana" – sem bloqueio
   const fecharFinsDeSemana = () => {
     const jaFechados = horarios
       .filter((h) => FINS_DE_SEMANA.includes(h.dia_semana))
       .every((h) => !h.ativo && !temExpedienteOuIntervalo(h));
     if (jaFechados) {
-      toast.info("Os fins de semana já estavam fechados.", TOAST_NEUROSYNC);
+      toast.info("Os fins de semana já estão fechados.", TOAST_NEUROSYNC);
       return;
     }
     setHorarios((prev) =>
@@ -541,6 +578,7 @@ export default function Funcionamento({
         setHorariosOriginais(clonarHorarios(horarios));
         setAlteracoesPendentes(false);
         setBloqueado(false);
+        avisoMensalExibido.current = false;
       }
 
       if (idsExcecoesMarcadasRemocao.length > 0) {
@@ -809,6 +847,24 @@ export default function Funcionamento({
                     return;
                   }
                   const ref = horarios[origemIdx];
+
+                  // Impede copiar horário vazio, inválido ou com intervalo incorreto.
+                  // Reutiliza validarIntervalo (já importada) que cobre expediente e intervalo.
+                  const errosCopia = validarIntervalo(
+                    normalizarHorario(ref.hora_inicio),
+                    normalizarHorario(ref.hora_fim),
+                    normalizarHorarioNullable(ref.intervalo_inicio),
+                    normalizarHorarioNullable(ref.intervalo_fim),
+                    ref.ativo,
+                  );
+                  if (Object.keys(errosCopia).length > 0) {
+                    toast.warning(
+                      "Preencha um horário válido antes de copiar.",
+                      TOAST_AVISO,
+                    );
+                    return;
+                  }
+
                   const destinosAlterados = destinos.filter((i) => {
                     const destino = horarios[i];
                     return !horariosIguais(destino, {

@@ -211,20 +211,34 @@ const CalendarioMensal = forwardRef<
           }
           .fc .fc-daygrid-event {
             border-radius: 999px;
-            padding: 3px 7px;
-            font-size: 0.66rem;
-            font-weight: 700;
-            white-space: normal;
+            padding: 2px 8px;
             overflow: hidden;
-            text-overflow: ellipsis;
             border: none;
             margin: 0;
-            line-height: 1.15;
             box-shadow: inset 0 0 0 1px rgba(255,255,255,0.48);
+          }
+          .fc .fc-event-main {
+            overflow: hidden;
+            min-width: 0;
+          }
+          .fc .fc-event-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.3;
+            display: block;
+          }
+          /* Eventos com horário: permitir até 2 linhas para exibir horário completo */
+          .fc .evento-excecao .fc-event-title,
+          .fc .evento-funcionamento .fc-event-title {
+            white-space: normal;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
-            text-align: center;
+            overflow: hidden;
+            text-overflow: clip;
           }
           .fc .evento-funcionamento {
             background: #F3EAF8 !important;
@@ -263,8 +277,10 @@ const CalendarioMensal = forwardRef<
               font-size: 0.78rem;
             }
             .fc .fc-daygrid-event {
-              font-size: 0.56rem;
               padding: 1px 4px;
+            }
+            .fc .fc-event-title {
+              font-size: 0.6rem;
             }
           }
         `}</style>

@@ -42,7 +42,13 @@ function mascararCPF(valor: string): string {
   return numeros.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, "$1.$2.$3-$4");
 }
 
-export default function FormularioCadastro() {
+interface FormularioCadastroProps {
+  onCadastroSucesso?: () => void;
+}
+
+export default function FormularioCadastro({
+  onCadastroSucesso,
+}: FormularioCadastroProps) {
   const cadastrarUsuario = useCadastroUsuario();
   const router = useRouter();
 
@@ -341,8 +347,11 @@ export default function FormularioCadastro() {
       setErroSenha("");
       setErroConfirmarSenha("");
 
-      // Redireciona para a tela de login imediatamente após sucesso
-      router.replace("/");
+      // Redireciona para a tela de login após exibir o toast de sucesso
+      setTimeout(() => {
+        onCadastroSucesso?.();
+        router.push("/");
+      }, 600);
     } catch (error) {
       console.error("Erro no cadastro:", error);
       const mensagem =

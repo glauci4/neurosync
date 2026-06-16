@@ -772,7 +772,10 @@ const CalendarioAgenda = forwardRef<
           }
           .fc .fc-timegrid-event.evento-agenda {
             border-radius: 12px;
-            padding: 7px 9px;
+            padding: 5px 7px;
+          }
+          .fc-timeGridWeek-view .fc-timegrid-event.evento-agenda {
+            padding: 3px 6px;
           }
           .fc .evento-agenda-sem-expediente {
             position: relative;

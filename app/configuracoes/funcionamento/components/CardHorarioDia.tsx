@@ -232,7 +232,7 @@ export default function CardHorarioDia({
               </div>
             ) : (
               <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">
-                Sem expediente cadastrado
+                {temMensalNoDia ? "Funcionamento definido mensalmente" : "Sem expediente cadastrado"}
               </span>
             )
           ) : horario.ativo ? (
@@ -349,7 +349,7 @@ export default function CardHorarioDia({
               </label>
               <span className="text-gray-400 text-xs italic">
                 {temMensalNoDia
-                  ? "Definido por aplicação mensal"
+                  ? "Funcionamento definido mensalmente"
                   : "Sem horários"}
               </span>
             </div>

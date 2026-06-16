@@ -129,6 +129,8 @@ export function eventosDoDia(
     (e) => e.tipo === "funcionamento" && e.dataInicio === dataISO,
   );
 
+  const hojeISO = obterDataLocalISO(new Date());
+
   return eventos
     .filter((evento) => {
       if (evento.tipo === "funcionamento") {
@@ -138,6 +140,7 @@ export function eventosDoDia(
           return dataISO >= inicio && dataISO <= fim;
         }
         if (temFuncionamentoPontual) return false;
+        if (dataISO < hojeISO) return false; // padrão semanal não é projetado em datas passadas
         return evento.diaSemana === diaSemana;
       }
       const inicio = evento.dataInicio || "";

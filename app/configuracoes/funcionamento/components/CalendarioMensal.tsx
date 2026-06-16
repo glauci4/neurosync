@@ -84,6 +84,8 @@ const CalendarioMensal = forwardRef<
           .filter(Boolean),
       );
 
+      const hojeISO = obterDataLocalISO(new Date());
+
       const eventosCalendario = montarEventosCalendario(
         [...horarios, ...horariosPontuais],
         excecoes,
@@ -96,12 +98,12 @@ const CalendarioMensal = forwardRef<
           !evento.dataInicio &&
           evento.diaSemana !== undefined
         ) {
-          // Semanal: expande para cada data do range, pulando as com pontual
+          // Semanal: expande para cada data do range, pulando passadas e datas com pontual
           const cursor = new Date(fetchInfo.start);
           while (cursor < fetchInfo.end) {
             if (cursor.getDay() === evento.diaSemana) {
               const dateISO = obterDataLocalISO(cursor);
-              if (!datasComPontual.has(dateISO)) {
+              if (dateISO >= hojeISO && !datasComPontual.has(dateISO)) {
                 resultado.push({
                   id: `${evento.id}-${dateISO}`,
                   title: evento.titulo,

@@ -11,6 +11,7 @@ export interface UsuarioSessao {
   isAdminClinica?: boolean;
   isResponsavelClinica?: boolean;
   clinica?: string | null;
+  ativo?: boolean;
 }
 
 async function buscarUsuarioLogado(): Promise<UsuarioSessao> {

@@ -12,7 +12,8 @@ export interface ErrosPeriodoRelatorios {
   errorMessage?: string;
 }
 
-const MENSAGEM_DATA_INVALIDA = "Informe uma data válida.";
+const MENSAGEM_DATA_INICIO_INVALIDA = "A data inicial informada não existe.";
+const MENSAGEM_DATA_FIM_INVALIDA = "A data final informada não existe.";
 const ANO_MINIMO = 1900;
 const ANO_MAXIMO = 2100;
 
@@ -78,11 +79,11 @@ export function validarPeriodoRelatorios(
   const dataFim = parseDataIso(data_fim);
 
   if (data_inicio && !dataInicio) {
-    erros.data_inicio = MENSAGEM_DATA_INVALIDA;
+    erros.data_inicio = MENSAGEM_DATA_INICIO_INVALIDA;
   }
 
   if (data_fim && !dataFim) {
-    erros.data_fim = MENSAGEM_DATA_INVALIDA;
+    erros.data_fim = MENSAGEM_DATA_FIM_INVALIDA;
   }
 
   if (dataInicio && dataFim) {

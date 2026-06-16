@@ -11,6 +11,16 @@ import {
   respostaNaoAutenticado,
 } from "../_utils";
 
+function obterHoraAtualSaoPaulo() {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date());
+}
+
 export async function GET(request: Request) {
   let connection: ConexaoMySQL | undefined;
 
@@ -53,6 +63,13 @@ export async function GET(request: Request) {
     if (!filtros.status) {
       where.push("c.status IN ('agendado', 'remarcado')");
     }
+
+    const hojeRelatorio = obterDataHojeRelatorios();
+    const horaAtual = obterHoraAtualSaoPaulo();
+    where.push(
+      `(DATE(c.${colunaDataConsulta}) > ? OR (DATE(c.${colunaDataConsulta}) = ? AND c.horario_inicio >= ?))`,
+    );
+    filtrosConsulta.params.push(hojeRelatorio, hojeRelatorio, horaAtual);
 
     const [rows] = await connection.execute<RowDataPacket[]>(
       `SELECT

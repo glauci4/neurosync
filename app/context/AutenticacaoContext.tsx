@@ -52,6 +52,13 @@ export function AutenticacaoProvider({ children }: { children: ReactNode }) {
     const perfilAtualizado = usuarioLogado.data;
     if (!perfilAtualizado) return;
 
+    if (perfilAtualizado.ativo === false) {
+      setUsuario(null);
+      localStorage.removeItem("usuario_neurosync");
+      router.replace("/");
+      return;
+    }
+
     setUsuario((usuarioAtual) => {
       if (!usuarioAtual || usuarioAtual.id !== perfilAtualizado.id) {
         return usuarioAtual;

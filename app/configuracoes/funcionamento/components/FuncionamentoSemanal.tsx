@@ -155,21 +155,24 @@ export default function FuncionamentoSemanal({
             <button
               type="button"
               onClick={onAplicarDiasUteis}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#F3EAF8] hover:bg-[#E1D4F0] text-[#9F64AF] rounded-lg transition-colors"
+              disabled={bloqueado}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#F3EAF8] hover:bg-[#E1D4F0] text-[#9F64AF] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Calendar size={14} /> Aplicar dias úteis
             </button>
             <button
               type="button"
               onClick={onFecharFinsDeSemana}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#F3EAF8] hover:bg-[#E1D4F0] text-[#9F64AF] rounded-lg transition-colors"
+              disabled={bloqueado}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#F3EAF8] hover:bg-[#E1D4F0] text-[#9F64AF] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CalendarDays size={14} /> Fechar fins de semana
             </button>
             <button
               type="button"
               onClick={onLimparHorarios}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#F3EAF8] hover:bg-[#E1D4F0] text-[#9F64AF] rounded-lg transition-colors"
+              disabled={bloqueado}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#F3EAF8] hover:bg-[#E1D4F0] text-[#9F64AF] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Trash2 size={14} /> Limpar horários
             </button>

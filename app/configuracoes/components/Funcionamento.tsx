@@ -64,7 +64,6 @@ const TOAST_AVISO = {
 };
 
 const TOAST_PENDENCIAS_ID = "funcionamento-pendencias";
-const TOAST_MENSAL_VIGENTE_ID = "funcionamento-mensal-vigente";
 
 interface FuncionamentoProps {
   podeEditar: boolean;
@@ -110,7 +109,6 @@ export default function Funcionamento({
     return { month: now.getMonth() + 1, year: now.getFullYear() };
   });
   const [alteracoesPendentes, setAlteracoesPendentes] = useState(false);
-  const [bloqueado, setBloqueado] = useState(false);
   const [excecoesRascunho, setExcecoesRascunho] = useState<
     Array<Excecao & { rascunho: true }>
   >([]);
@@ -241,37 +239,17 @@ export default function Funcionamento({
     );
   }, [horariosPontuais]);
 
-  // A edição semanal nunca é bloqueada por aplicações mensais (estado `bloqueado`
-  // permanece sempre false). Salvar o semanal preserva as aplicações pontuais,
-  // pois o backend só remove registros sem data específica.
-
-  // Controla se o aviso de mensal vigente já foi exibido nesta sessão de edição.
-  // Resetado após salvar para que a próxima edição possa exibir o aviso novamente.
-  const avisoMensalExibido = useRef(false);
+  const bloqueado = temMensalConfigurado;
 
   // =========================================================================
-  // Detecção de pendências e aviso de mensal vigente
+  // Detecção de pendências
   // =========================================================================
   useEffect(() => {
     if (!primeiraCarga.current) {
       const temMudancas = !listasHorariosIguais(horarios, horariosOriginais);
       setAlteracoesPendentes(temMudancas);
-      // Exibe o aviso apenas quando o usuário realmente edita algo no semanal,
-      // nunca ao carregar a tela.
-      if (temMudancas && temMensalConfigurado && !avisoMensalExibido.current) {
-        avisoMensalExibido.current = true;
-        toast(
-          "Atenção: existe um funcionamento mensal configurado. O horário semanal salvo irá prevalecer sobre o mensal apenas nesta semana.",
-          {
-            id: TOAST_MENSAL_VIGENTE_ID,
-            icon: <AlertCircle size={16} className="text-[#9F64AF]" />,
-            ...TOAST_NEUROSYNC,
-            duration: 8000,
-          },
-        );
-      }
     }
-  }, [horarios, horariosOriginais, temMensalConfigurado]);
+  }, [horarios, horariosOriginais]);
 
   const excecoesVisiveis = useMemo(() => {
     const remocoes = new Set(idsExcecoesMarcadasRemocao);
@@ -333,7 +311,7 @@ export default function Funcionamento({
   ) => {
     if (bloqueado) {
       toast.warning(
-        "Edição bloqueada. Use o calendário de exceções para alterações pontuais.",
+        "Existe funcionamento mensal configurado. Para alterar horários deste período, edite as datas específicas no calendário.",
         TOAST_AVISO,
       );
       return;
@@ -392,6 +370,13 @@ export default function Funcionamento({
   // Botão "Aplicar dias úteis": ativa e preenche o horário de referência em
   // todos os dias úteis (Seg–Sex), inclusive nos que estiverem inativos.
   const aplicarDiasUteis = () => {
+    if (bloqueado) {
+      toast.warning(
+        "Existe funcionamento mensal configurado. Para alterar horários deste período, edite as datas específicas no calendário.",
+        TOAST_AVISO,
+      );
+      return;
+    }
     const diaRef = horarios.find(temHorarioPreenchido);
     if (!diaRef) {
       toast.error(
@@ -454,8 +439,14 @@ export default function Funcionamento({
     );
   };
 
-  // Botão "Fechar fins de semana" – sem bloqueio
   const fecharFinsDeSemana = () => {
+    if (bloqueado) {
+      toast.warning(
+        "Existe funcionamento mensal configurado. Para alterar horários deste período, edite as datas específicas no calendário.",
+        TOAST_AVISO,
+      );
+      return;
+    }
     const jaFechados = horarios
       .filter((h) => FINS_DE_SEMANA.includes(h.dia_semana))
       .every((h) => !h.ativo && !temExpedienteOuIntervalo(h));
@@ -481,6 +472,13 @@ export default function Funcionamento({
   };
 
   const limparHorarios = () => {
+    if (bloqueado) {
+      toast.warning(
+        "Existe funcionamento mensal configurado. Para alterar horários deste período, edite as datas específicas no calendário.",
+        TOAST_AVISO,
+      );
+      return;
+    }
     const temAlgumPreenchido = horarios.some(temExpedienteOuIntervalo);
     if (!temAlgumPreenchido) {
       toast.info("Nenhum horário configurado para limpar.", TOAST_NEUROSYNC);
@@ -573,12 +571,10 @@ export default function Funcionamento({
 
     setSalvandoAlteracoes(true);
     try {
-      if (alteracoesPendentes) {
+      if (alteracoesPendentes && !bloqueado) {
         await mutationSemanal.mutateAsync(horarios);
         setHorariosOriginais(clonarHorarios(horarios));
         setAlteracoesPendentes(false);
-        setBloqueado(false);
-        avisoMensalExibido.current = false;
       }
 
       if (idsExcecoesMarcadasRemocao.length > 0) {
@@ -841,7 +837,7 @@ export default function Funcionamento({
                 onCopiar={(origemIdx, destinos) => {
                   if (bloqueado) {
                     toast.warning(
-                      "Edição bloqueada. Use exceções para alterações.",
+                      "Existe funcionamento mensal configurado. Para alterar horários deste período, edite as datas específicas no calendário.",
                       TOAST_AVISO,
                     );
                     return;

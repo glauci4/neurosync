@@ -30,10 +30,51 @@ function validarTelefone(telefone: string) {
   return numeros.length >= 10 && numeros.length <= 11;
 }
 
-function validarDataNascimento(data: string) {
-  const parsed = new Date(`${data}T00:00:00`);
+function normalizarDataNascimento(
+  data: string | Date | number | null | undefined,
+) {
+  if (data instanceof Date && !Number.isNaN(data.getTime())) {
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, "0");
+    const dia = String(data.getDate()).padStart(2, "0");
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  if (typeof data === "number") {
+    const dataExcel = new Date(Date.UTC(1899, 11, 30));
+    dataExcel.setDate(dataExcel.getDate() + data);
+
+    if (!Number.isNaN(dataExcel.getTime())) {
+      const ano = dataExcel.getUTCFullYear();
+      const mes = String(dataExcel.getUTCMonth() + 1).padStart(2, "0");
+      const dia = String(dataExcel.getUTCDate()).padStart(2, "0");
+      return `${ano}-${mes}-${dia}`;
+    }
+  }
+
+  const texto = typeof data === "string" ? data.trim() : "";
+  if (!texto) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    return texto;
+  }
+
+  const dataBr = texto.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dataBr) {
+    const [, dia, mes, ano] = dataBr;
+    return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+  }
+
+  return texto;
+}
+
+function validarDataNascimento(
+  data: string | Date | number | null | undefined,
+) {
+  const normalizada = normalizarDataNascimento(data);
+  const parsed = new Date(`${normalizada}T00:00:00`);
   return (
-    /^\d{4}-\d{2}-\d{2}$/.test(data) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(normalizada) &&
     !Number.isNaN(parsed.getTime()) &&
     parsed <= new Date()
   );
@@ -50,11 +91,12 @@ function calcularIdade(dataNascimento: string) {
 
 function inferirTipoPaciente(
   tipo: string,
-  dataNascimento: string,
+  dataNascimento: string | Date | number | null | undefined,
 ): "adulto" | "menor" | "" {
   if (tipo === "adulto" || tipo === "menor") return tipo;
-  if (!validarDataNascimento(dataNascimento)) return "";
-  return calcularIdade(dataNascimento) < 18 ? "menor" : "adulto";
+  const dataNormalizada = normalizarDataNascimento(dataNascimento);
+  if (!validarDataNascimento(dataNormalizada)) return "";
+  return calcularIdade(dataNormalizada) < 18 ? "menor" : "adulto";
 }
 
 export function validarLinhasImportacao(linhas: LinhaImportacaoPaciente[]) {
@@ -70,9 +112,16 @@ export function validarLinhasImportacao(linhas: LinhaImportacaoPaciente[]) {
     const erros: string[] = [];
     const cpfNumeros = somenteNumeros(linha.cpf);
     const responsavelCpfNumeros = somenteNumeros(linha.responsavel_cpf);
-    const dataNascimentoValida =
-      !!linha.data_nascimento && validarDataNascimento(linha.data_nascimento);
-    const tipoInferido = inferirTipoPaciente(linha.tipo, linha.data_nascimento);
+    const dataNascimentoNormalizada = normalizarDataNascimento(
+      linha.data_nascimento,
+    );
+    const dataNascimentoValida = validarDataNascimento(
+      dataNascimentoNormalizada,
+    );
+    const tipoInferido = inferirTipoPaciente(
+      linha.tipo,
+      dataNascimentoNormalizada,
+    );
 
     if (!linha.nome || linha.nome.trim().length < 3) {
       erros.push("Nome obrigatório");

@@ -47,6 +47,12 @@ function formatarDataExcel(serial: number) {
 
 export function normalizarDataImportada(valor: unknown) {
   if (typeof valor === "number") return formatarDataExcel(valor);
+  if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+    const ano = valor.getFullYear();
+    const mes = String(valor.getMonth() + 1).padStart(2, "0");
+    const dia = String(valor.getDate()).padStart(2, "0");
+    return `${ano}-${mes}-${dia}`;
+  }
 
   const texto = String(valor || "").trim();
   if (!texto) return "";
@@ -56,6 +62,12 @@ export function normalizarDataImportada(valor: unknown) {
   const dataBr = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (dataBr) {
     const [, dia, mes, ano] = dataBr;
+    return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+  }
+
+  const dataBrHifen = texto.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (dataBrHifen) {
+    const [, dia, mes, ano] = dataBrHifen;
     return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
   }
 

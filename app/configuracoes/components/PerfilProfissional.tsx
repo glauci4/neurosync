@@ -178,9 +178,11 @@ export default function PerfilProfissional({
                   <span className="flex items-center gap-1">
                     <Mail size={14} /> {perfil.email}
                   </span>
-                  <span className="flex items-center gap-1">
-                    <Smartphone size={14} /> {telefoneFormatado}
-                  </span>
+                  {isPsicologo ? (
+                    <span className="flex items-center gap-1">
+                      <Smartphone size={14} /> {telefoneFormatado}
+                    </span>
+                  ) : null}
                   <span className="flex items-center gap-1">
                     <HiOutlineIdentification size={14} /> {documentoLabel}:{" "}
                     {documentoValor}

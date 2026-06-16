@@ -48,6 +48,42 @@ function validarTelefone(telefone: string) {
   return numeros.length >= 10 && numeros.length <= 11;
 }
 
+function normalizarDataNascimento(data?: string | Date | number | null) {
+  if (data instanceof Date && !Number.isNaN(data.getTime())) {
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, "0");
+    const dia = String(data.getDate()).padStart(2, "0");
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  if (typeof data === "number") {
+    const dataExcel = new Date(Date.UTC(1899, 11, 30));
+    dataExcel.setDate(dataExcel.getDate() + data);
+
+    if (!Number.isNaN(dataExcel.getTime())) {
+      const ano = dataExcel.getUTCFullYear();
+      const mes = String(dataExcel.getUTCMonth() + 1).padStart(2, "0");
+      const dia = String(dataExcel.getUTCDate()).padStart(2, "0");
+      return `${ano}-${mes}-${dia}`;
+    }
+  }
+
+  const texto = String(data || "").trim();
+  if (!texto) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    return texto;
+  }
+
+  const dataBr = texto.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dataBr) {
+    const [, dia, mes, ano] = dataBr;
+    return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+  }
+
+  return texto;
+}
+
 function calcularIdade(dataNascimento: string) {
   const hoje = new Date();
   const nascimento = new Date(`${dataNascimento}T00:00:00`);
@@ -59,17 +95,21 @@ function calcularIdade(dataNascimento: string) {
 
 function inferirTipoPaciente(
   tipo: TipoPaciente | "",
-  dataNascimento: string,
+  dataNascimento: string | Date | number | null | undefined,
 ): TipoPaciente | "" {
   if (tipo === "adulto" || tipo === "menor") return tipo;
-  if (!validarDataNascimento(dataNascimento)) return "";
-  return calcularIdade(dataNascimento) < 18 ? "menor" : "adulto";
+  const dataNormalizada = normalizarDataNascimento(dataNascimento);
+  if (!validarDataNascimento(dataNormalizada)) return "";
+  return calcularIdade(dataNormalizada) < 18 ? "menor" : "adulto";
 }
 
-function validarDataNascimento(data: string) {
-  const dataNasc = new Date(`${data}T00:00:00`);
+function validarDataNascimento(
+  data: string | Date | number | null | undefined,
+) {
+  const dataNormalizada = normalizarDataNascimento(data);
+  const dataNasc = new Date(`${dataNormalizada}T00:00:00`);
   return (
-    /^\d{4}-\d{2}-\d{2}$/.test(data) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(dataNormalizada) &&
     !Number.isNaN(dataNasc.getTime()) &&
     dataNasc <= new Date()
   );
@@ -106,7 +146,7 @@ function validarLinha(
   const cpf = somenteNumeros(linha.cpf);
   const telefone = somenteNumeros(linha.telefone);
   const email = normalizarTexto(linha.email).toLowerCase();
-  const dataNascimento = normalizarTexto(linha.data_nascimento);
+  const dataNascimento = normalizarDataNascimento(linha.data_nascimento);
   const tipo =
     linha.tipo === "adulto" || linha.tipo === "menor" ? linha.tipo : "";
   const dataNascimentoValida = validarDataNascimento(dataNascimento);
@@ -115,8 +155,7 @@ function validarLinha(
   const responsavelCpf = somenteNumeros(linha.responsavel_cpf);
 
   if (!nome || nome.length < 3) erros.push("Nome obrigatório");
-  if (!dataNascimentoValida)
-    erros.push("Data de nascimento inválida");
+  if (!dataNascimentoValida) erros.push("Data de nascimento inválida");
   if (!telefone || !validarTelefone(telefone)) erros.push("Telefone inválido");
   if (cpf && !validarCPF(cpf)) erros.push("CPF inválido");
   if (email && !validarEmail(email)) erros.push("E-mail inválido");
@@ -166,7 +205,7 @@ function validarLinha(
 async function cpfJaExiste(
   connection: ConexaoMySQL,
   cpf: string,
-  clinicaId: number,
+  _clinicaId: number,
 ) {
   if (!cpf) return false;
   const [existentes] = await connection.execute<RowDataPacket[]>(
@@ -179,11 +218,11 @@ async function cpfJaExiste(
 async function telefoneJaExiste(
   connection: ConexaoMySQL,
   telefone: string,
-  clinicaId: number,
+  _clinicaId: number,
 ) {
   const [existentes] = await connection.execute<RowDataPacket[]>(
     "SELECT id FROM pacientes WHERE telefone = ? AND clinica_id = ? AND deleted_at IS NULL LIMIT 1",
-    [telefone, clinicaId],
+    [telefone, _clinicaId],
   );
   return existentes.length > 0;
 }

@@ -86,13 +86,16 @@ function normalizarRegistro(
     {},
   );
 
+  const dataNascimento =
+    mapa.data_nascimento ?? mapa.nascimento ?? mapa.data_de_nascimento ?? "";
+
   return {
     linha: indice + 2,
     nome: String(mapa.nome || "").trim(),
     cpf: String(mapa.cpf || "").trim(),
     telefone: String(mapa.telefone || "").trim(),
     email: String(mapa.email || "").trim(),
-    data_nascimento: normalizarDataImportada(mapa.data_nascimento),
+    data_nascimento: normalizarDataImportada(dataNascimento),
     tipo: normalizarTipo(mapa.tipo),
     responsavel_nome: String(mapa.responsavel_nome || "").trim(),
     responsavel_cpf: String(mapa.responsavel_cpf || "").trim(),

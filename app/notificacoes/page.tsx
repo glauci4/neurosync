@@ -7,7 +7,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSidebar } from "@/app/context/SidebarContext";
 import Sidebar from "@/app/inicio/components/Sidebar";
 import { useAutenticacao } from "@/hooks/useAutenticacao";
-import { obterCategoriaNotificacao } from "@/lib/notificacoes";
 
 import CabecalhoNotificacoes from "./components/CabecalhoNotificacoes";
 import FiltrosNotificacoes, {
@@ -28,7 +27,6 @@ import {
 
 const FILTROS_PADRAO: FiltrosNotificacoesValores = {
   leitura: "todas",
-  tipo: "todos",
   periodo: "todos",
 };
 
@@ -88,12 +86,6 @@ export default function NotificacoesPage() {
     return notificacoes.filter((notificacao) => {
       if (filtros.leitura === "nao_lidas" && notificacao.lida) return false;
       if (filtros.leitura === "lidas" && !notificacao.lida) return false;
-      if (
-        filtros.tipo !== "todos" &&
-        obterCategoriaNotificacao(notificacao.tipo) !== filtros.tipo
-      ) {
-        return false;
-      }
       if (
         filtros.periodo !== "todos" &&
         obterPeriodoNotificacao(notificacao.criado_em) !== filtros.periodo
@@ -247,9 +239,7 @@ export default function NotificacoesPage() {
                 carregandoMarcarTodas={marcarTodasComoLidas.isPending}
                 carregandoAcao={marcarLida.isPending || marcarNaoLida.isPending}
                 filtroAtivo={
-                  filtros.leitura !== "todas" ||
-                  filtros.tipo !== "todos" ||
-                  filtros.periodo !== "todos"
+                  filtros.leitura !== "todas" || filtros.periodo !== "todos"
                     ? "filtrado"
                     : "todas"
                 }

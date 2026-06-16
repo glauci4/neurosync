@@ -12,12 +12,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 export type FiltroLeituraNotificacoes = "todas" | "nao_lidas" | "lidas";
-export type FiltroTipoNotificacoes =
-  | "todos"
-  | "consulta"
-  | "feriado"
-  | "transferencia"
-  | "pendente";
 export type FiltroPeriodoNotificacoes =
   | "todos"
   | "hoje"
@@ -27,7 +21,6 @@ export type FiltroPeriodoNotificacoes =
 
 export interface FiltrosNotificacoesValores {
   leitura: FiltroLeituraNotificacoes;
-  tipo: FiltroTipoNotificacoes;
   periodo: FiltroPeriodoNotificacoes;
 }
 
@@ -43,7 +36,6 @@ interface FiltrosNotificacoesProps {
 
 const FILTROS_PADRAO: FiltrosNotificacoesValores = {
   leitura: "todas",
-  tipo: "todos",
   periodo: "todos",
 };
 
@@ -51,14 +43,6 @@ const OPCOES_LEITURA: OpcaoFiltro[] = [
   { valor: "todas", label: "Todas" },
   { valor: "nao_lidas", label: "Não lidas" },
   { valor: "lidas", label: "Lidas" },
-];
-
-const OPCOES_TIPO: OpcaoFiltro[] = [
-  { valor: "todos", label: "Todos" },
-  { valor: "consulta", label: "Consultas" },
-  { valor: "feriado", label: "Feriados" },
-  { valor: "transferencia", label: "Transferências" },
-  { valor: "pendente", label: "Pendentes" },
 ];
 
 const OPCOES_PERIODO: OpcaoFiltro[] = [
@@ -70,11 +54,7 @@ const OPCOES_PERIODO: OpcaoFiltro[] = [
 ];
 
 function contarFiltrosAtivos(filtros: FiltrosNotificacoesValores) {
-  return [
-    filtros.leitura !== FILTROS_PADRAO.leitura,
-    filtros.tipo !== FILTROS_PADRAO.tipo,
-    filtros.periodo !== FILTROS_PADRAO.periodo,
-  ].filter(Boolean).length;
+  return [filtros.leitura !== FILTROS_PADRAO.leitura, filtros.periodo !== FILTROS_PADRAO.periodo].filter(Boolean).length;
 }
 
 function CampoFiltro({
@@ -364,19 +344,6 @@ export default function FiltrosNotificacoes({
                       onChange({
                         ...filtros,
                         leitura: valor as FiltroLeituraNotificacoes,
-                      })
-                    }
-                  />
-                  <CampoFiltro
-                    label="Tipo"
-                    valor={filtros.tipo}
-                    opcoes={OPCOES_TIPO}
-                    placeholder="Todos"
-                    painelInteracaoRef={painelRef}
-                    onChange={(valor) =>
-                      onChange({
-                        ...filtros,
-                        tipo: valor as FiltroTipoNotificacoes,
                       })
                     }
                   />

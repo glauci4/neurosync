@@ -39,6 +39,24 @@ function validarDataNascimento(data: string) {
   );
 }
 
+function calcularIdade(dataNascimento: string) {
+  const hoje = new Date();
+  const nascimento = new Date(`${dataNascimento}T00:00:00`);
+  let idade = hoje.getFullYear() - nascimento.getFullYear();
+  const mes = hoje.getMonth() - nascimento.getMonth();
+  if (mes < 0 || (mes === 0 && hoje.getDate() < nascimento.getDate())) idade--;
+  return idade;
+}
+
+function inferirTipoPaciente(
+  tipo: string,
+  dataNascimento: string,
+): "adulto" | "menor" | "" {
+  if (tipo === "adulto" || tipo === "menor") return tipo;
+  if (!validarDataNascimento(dataNascimento)) return "";
+  return calcularIdade(dataNascimento) < 18 ? "menor" : "adulto";
+}
+
 export function validarLinhasImportacao(linhas: LinhaImportacaoPaciente[]) {
   const cpfs = new Map<string, number[]>();
 
@@ -52,19 +70,19 @@ export function validarLinhasImportacao(linhas: LinhaImportacaoPaciente[]) {
     const erros: string[] = [];
     const cpfNumeros = somenteNumeros(linha.cpf);
     const responsavelCpfNumeros = somenteNumeros(linha.responsavel_cpf);
+    const dataNascimentoValida =
+      !!linha.data_nascimento && validarDataNascimento(linha.data_nascimento);
+    const tipoInferido = inferirTipoPaciente(linha.tipo, linha.data_nascimento);
 
     if (!linha.nome || linha.nome.trim().length < 3) {
       erros.push("Nome obrigatório");
     }
 
-    if (
-      !linha.data_nascimento ||
-      !validarDataNascimento(linha.data_nascimento)
-    ) {
+    if (!dataNascimentoValida) {
       erros.push("Data de nascimento inválida");
     }
 
-    if (!linha.tipo || !["adulto", "menor"].includes(linha.tipo)) {
+    if (dataNascimentoValida && !tipoInferido) {
       erros.push("Tipo obrigatório: adulto ou menor");
     }
 
@@ -80,7 +98,7 @@ export function validarLinhasImportacao(linhas: LinhaImportacaoPaciente[]) {
       erros.push("E-mail inválido");
     }
 
-    if (linha.tipo === "menor" && !linha.responsavel_nome.trim()) {
+    if (tipoInferido === "menor" && !linha.responsavel_nome.trim()) {
       erros.push("Paciente menor exige responsável");
     }
 
@@ -101,6 +119,7 @@ export function validarLinhasImportacao(linhas: LinhaImportacaoPaciente[]) {
       telefone: somenteNumeros(linha.telefone),
       responsavel_cpf: responsavelCpfNumeros,
       email: linha.email.trim().toLowerCase(),
+      tipo: tipoInferido,
       erros,
       status:
         erros.length > 0

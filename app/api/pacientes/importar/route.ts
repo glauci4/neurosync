@@ -57,6 +57,15 @@ function calcularIdade(dataNascimento: string) {
   return idade;
 }
 
+function inferirTipoPaciente(
+  tipo: TipoPaciente | "",
+  dataNascimento: string,
+): TipoPaciente | "" {
+  if (tipo === "adulto" || tipo === "menor") return tipo;
+  if (!validarDataNascimento(dataNascimento)) return "";
+  return calcularIdade(dataNascimento) < 18 ? "menor" : "adulto";
+}
+
 function validarDataNascimento(data: string) {
   const dataNasc = new Date(`${data}T00:00:00`);
   return (
@@ -100,28 +109,33 @@ function validarLinha(
   const dataNascimento = normalizarTexto(linha.data_nascimento);
   const tipo =
     linha.tipo === "adulto" || linha.tipo === "menor" ? linha.tipo : "";
+  const dataNascimentoValida = validarDataNascimento(dataNascimento);
+  const tipoInferido = inferirTipoPaciente(tipo, dataNascimento);
   const responsavelNome = normalizarTexto(linha.responsavel_nome);
   const responsavelCpf = somenteNumeros(linha.responsavel_cpf);
 
   if (!nome || nome.length < 3) erros.push("Nome obrigatório");
-  if (!dataNascimento || !validarDataNascimento(dataNascimento))
+  if (!dataNascimentoValida)
     erros.push("Data de nascimento inválida");
-  if (!tipo) erros.push("Tipo obrigatório: adulto ou menor");
   if (!telefone || !validarTelefone(telefone)) erros.push("Telefone inválido");
   if (cpf && !validarCPF(cpf)) erros.push("CPF inválido");
   if (email && !validarEmail(email)) erros.push("E-mail inválido");
   if (responsavelCpf && !validarCPF(responsavelCpf))
     erros.push("CPF do responsável inválido");
 
-  if (tipo && dataNascimento && validarDataNascimento(dataNascimento)) {
+  if (dataNascimentoValida && !tipoInferido) {
+    erros.push("Tipo obrigatório: adulto ou menor");
+  }
+
+  if (tipoInferido && dataNascimento && validarDataNascimento(dataNascimento)) {
     const idade = calcularIdade(dataNascimento);
-    if (tipo === "adulto" && idade < 18)
+    if (tipoInferido === "adulto" && idade < 18)
       erros.push("Paciente adulto deve ter 18 anos ou mais");
-    if (tipo === "menor" && idade >= 18)
+    if (tipoInferido === "menor" && idade >= 18)
       erros.push("Paciente menor deve ter menos de 18 anos");
   }
 
-  if (tipo === "menor" && !responsavelNome) {
+  if (tipoInferido === "menor" && !responsavelNome) {
     erros.push("Paciente menor exige responsável");
   }
 
@@ -140,7 +154,7 @@ function validarLinha(
       telefone,
       email,
       data_nascimento: dataNascimento,
-      tipo,
+      tipo: tipoInferido,
       responsavel_nome: responsavelNome,
       responsavel_cpf: responsavelCpf,
       observacoes: normalizarTexto(linha.observacoes),

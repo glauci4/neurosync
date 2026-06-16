@@ -20,6 +20,8 @@ export async function GET(request: Request) {
     const filtros = obterFiltrosRelatorios(request);
     const filtrosPacientes = aplicarFiltrosPacientesRelatorios({
       ...filtros,
+      dataInicio: null,
+      dataFim: null,
       status: "fila_espera",
     });
 

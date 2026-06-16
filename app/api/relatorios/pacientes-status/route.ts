@@ -18,7 +18,11 @@ export async function GET(request: Request) {
     if (!usuario) return respostaNaoAutenticado();
 
     const filtros = obterFiltrosRelatorios(request);
-    const filtrosPacientes = aplicarFiltrosPacientesRelatorios(filtros);
+    const filtrosPacientes = aplicarFiltrosPacientesRelatorios({
+      ...filtros,
+      dataInicio: null,
+      dataFim: null,
+    });
 
     const [rows] = await connection.execute<RowDataPacket[]>(
       `SELECT
